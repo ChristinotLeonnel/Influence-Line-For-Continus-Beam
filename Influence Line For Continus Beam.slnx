@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="Influence Line For Continus Beam/Influence Line For Continus Beam.vcxproj" />
+</Solution>
