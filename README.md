@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.svg" alt="Influence Line Logo" width="400"/>
+</p>
+
 # Structural Analysis — Continuous Beam (Influence Lines)
 
 A C++ application for the **hyperstatique (statically indeterminate) analysis of continuous beams**. It computes influence lines for bending moment, shear force, deflection, and rotation, then determines optimal load placements and exports all results as JSON.
