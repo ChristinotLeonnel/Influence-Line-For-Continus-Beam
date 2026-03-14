@@ -172,7 +172,6 @@
   <ItemGroup>
     <None Include="doc\Architecture_Optimisation.docx" />
     <None Include="path.json" />
-    <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="doc\Steps.txt" />
