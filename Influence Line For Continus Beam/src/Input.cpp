@@ -30,12 +30,32 @@ void Configuration::loadFromFile() {
         configFile << j.dump(4); // Indentation de 4 espaces pour la lisibilité
 		configFile.close();
     }
+    else {
+        // Ouvrir le fichier JSON
+        std::ifstream fichier("path.json");
+
+        if (!fichier.is_open()) {
+            std::cerr << "Erreur : impossible d'ouvrir le fichier !" << std::endl;
+        }
+
+        // Parser le JSON
+        json data;
+        try {
+            fichier >> data;
+        }
+        catch (const json::parse_error& e) {
+            std::cerr << "Erreur de parsing : " << e.what() << std::endl;
+        }
+
+		configPath = data["configPath"].get<std::string>();
+
+    }
 
     
     std::filesystem::create_directories(configPath);
 
     if (!checkFileExists(configPath / "structural model input.txt"))
-        write_structural_model_input("structural model input.txt");
+        write_structural_model_input("structural model input.txt", configPath); 
 
     std::ifstream inputFile(configPath / "structural model input.txt");
     if (!inputFile.is_open()) {

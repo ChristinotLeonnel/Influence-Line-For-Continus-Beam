@@ -302,8 +302,7 @@ static load LoadParser(std::string& line, const char* marker_1, const char* mark
     return l;
 }
 
-static void write_structural_model_input(const std::string& filename) {
-    std::filesystem::path configPath = getConfigPath();
+static void write_structural_model_input(const std::string& filename, std::filesystem::path configPath) {
     std::filesystem::create_directories(configPath);
     std::filesystem::path fullPath = configPath / filename;
     std::ofstream file(fullPath);
