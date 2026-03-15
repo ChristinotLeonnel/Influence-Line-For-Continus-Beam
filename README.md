@@ -4,7 +4,7 @@
 
 # Structural Analysis — Continuous Beam (Influence Lines)
 
-A C++ application for the **hyperstatique (statically indeterminate) analysis of continuous beams**. It computes influence lines for bending moment, shear force, deflection, and rotation, then determines optimal load placements and exports all results as JSON.
+A C++ application for the **hyperstatique (statically indeterminate) analysis of continuous beams**. It computes influence lines for bending moment, shear force, deflection, and rotation, then determines optimal load placements, exports all results as JSON, and generates plots and animations.
 
 ---
 
@@ -16,7 +16,9 @@ A C++ application for the **hyperstatique (statically indeterminate) analysis of
 - Combined load envelopes (point + distributed simultaneously)
 - Critical section analysis (worst-case span and section)
 - Fully parallel pipeline using `std::async`
-- All output in JSON — no external plotting dependencies
+- All output in JSON — no external plotting dependencies for the analysis
+- Static PNG plots and MP4 + GIF animations via OpenCV (pure C++)
+- Global envelope plots: influence line + optimal load position markers
 
 ---
 
@@ -25,11 +27,12 @@ A C++ application for the **hyperstatique (statically indeterminate) analysis of
 ```
 .
 ├── CMakeLists.txt
+├── InfluenceLine.props              # Visual Studio property sheet (vcpkg paths)
 ├── path.json                        # Auto-generated on first run
 ├── doc/
 │   ├── Architecture_Optimisation.docx
 │   └── Steps.txt
-├── headers/
+├── include/
 │   ├── Hyperstatique.h              # Continuous beam solver
 │   ├── Input.h                      # Configuration parser
 │   ├── Isostatique.h                # Single-span influence lines
@@ -40,6 +43,18 @@ A C++ application for the **hyperstatique (statically indeterminate) analysis of
 │   ├── SpanResult.h                 # Per-span result struct
 │   ├── UpdatePositions.h            # Rewrites input with optimal positions
 │   ├── Utils.h                      # Shared types, math, JSON helpers
+│   ├── data_paths.hpp               # Environment-based path resolution
+│   ├── json_loader.hpp              # Thread-safe JSON cache
+│   ├── plot_config.hpp              # Visual config struct (plot_config.json)
+│   ├── plot_context.hpp             # PlotContext singleton (nodes, x coords)
+│   ├── plot_results.hpp             # Static PNG renderer (pure OpenCV)
+│   ├── animate_results.hpp          # MP4 + GIF animation renderer
+│   ├── envelope_plots.hpp           # Global envelope plots (Phase 4)
+│   ├── render_common.hpp            # Shared OpenCV drawing engine
+│   ├── gnuplot_init.hpp             # Gnuplot PATH setup (static plots only)
+│   ├── gif_writer.hpp               # Animated GIF wrapper (gif.h)
+│   ├── gif.h                        # gif.h — download separately (see below)
+│   ├── thread_pool.hpp              # C++17 thread pool
 │   └── nlohmann/
 │       ├── json.hpp                 # nlohmann/json v3.11.3 (bundled)
 │       └── json_fwd.hpp
@@ -50,6 +65,7 @@ A C++ application for the **hyperstatique (statically indeterminate) analysis of
     ├── Isostatique.cpp
     ├── Loading.cpp
     ├── Output.cpp
+    ├── Ploting.cpp                  # Plotting pipeline (compiled as Ploting.lib)
     └── UpdatePositions.cpp
 ```
 
@@ -62,16 +78,16 @@ All results are written under a configurable root (default: `~/Documents/Matrix 
 ```
 <root>/
 ├── 01_Input/
-│   └── structural_model.json        # spans, E, I, step, node count
+│   └── structural_model.json
 ├── 02_Influence_Lines/
 │   ├── bending_moment.json          # [span][section][alpha]
 │   ├── shear_force.json
 │   ├── deflection.json
 │   ├── rotation.json
-│   ├── support_moment.json          # [support][alpha]
-│   ├── abscissa.json                # global x-coordinates
-│   ├── shear_abscissa.json          # x-coordinates with SF discontinuities
-│   └── node_lengths.json            # cumulative span lengths
+│   ├── support_moment.json
+│   ├── abscissa.json
+│   ├── shear_abscissa.json
+│   └── node_lengths.json
 ├── 03_Critical_Values/
 │   ├── bending_moment.json          # { span, section, alpha, value }
 │   ├── shear_force.json
@@ -80,17 +96,189 @@ All results are written under a configurable root (default: `~/Documents/Matrix 
 │   └── support_moment.json
 ├── 04_Load_Envelopes/
 │   ├── Global/
-│   │   ├── Point_Load/              # optimal load for entire beam
+│   │   ├── Point_Load/
 │   │   ├── Distributed_Load/
 │   │   └── Combined_Load/
 │   └── Critical_Section/
-│       ├── Point_Load/              # optimal load for critical span only
+│       ├── Point_Load/
 │       ├── Distributed_Load/
 │       └── Combined_Load/
-└── 05_Load_Positioning/
-    ├── Global/                      # input config rewritten with optimal positions (.txt)
-    └── Critical_Section/
+├── 05_Load_Positioning/
+│   ├── Global/                      # input config rewritten with optimal positions (.txt)
+│   └── Critical_Section/
+└── 05_Output/                       # ← generated by Ploting.lib
+    ├── Plots/
+    │   ├── Maximum/                 # one PNG per curve (critical section)
+    │   ├── All/                     # one PNG per curve (all spans)
+    │   └── Envelopes/
+    │       ├── Point_Load/          # influence line + load position marker
+    │       ├── Distributed_Load/
+    │       └── Combined_Load/
+    └── Animation/
+        ├── Results/
+        │   ├── GIF/                 # animated GIF per curve
+        │   └── MP4/                 # H.264 MP4 per curve
+        └── Curvature/
+            ├── GIF/
+            └── MP4/
 ```
+
+---
+
+## Dependencies
+
+### Analysis core (no installation required)
+
+| Dependency | Version | How |
+|---|---|---|
+| [nlohmann/json](https://github.com/nlohmann/json) | 3.11.3 | Bundled — `include/nlohmann/json.hpp` |
+| C++ standard library (`<future>`, `<filesystem>`) | C++20 | Compiler built-in |
+
+### Plotting & animation (must be installed)
+
+| Dependency | Version | Purpose |
+|---|---|---|
+| [OpenCV](https://opencv.org/) | 4.12.0 | PNG rendering, MP4 encoding, GIF frames |
+| [matplot++](https://github.com/alandefreitas/matplotplusplus) | 1.2.1 | Static plots (gnuplot backend) |
+| [gnuplot](http://www.gnuplot.info/) | 6.0+ | Required by matplot++ for static plots |
+| [gif.h](https://github.com/charlietangora/gif-h) | latest | Header-only GIF encoder — download manually |
+
+---
+
+## Installation Guide (Windows — MSVC x64)
+
+### Step 1 — Install Visual Studio 2022
+
+Download from https://visualstudio.microsoft.com/  
+During setup, select the **"Desktop development with C++"** workload.
+
+---
+
+### Step 2 — Install vcpkg
+
+Open PowerShell and run:
+
+```powershell
+cd C:\
+git clone https://github.com/microsoft/vcpkg.git
+cd vcpkg
+.\bootstrap-vcpkg.bat
+.\vcpkg.exe integrate install
+```
+
+`vcpkg integrate install` makes Visual Studio automatically find all vcpkg packages — no manual include path setup needed.
+
+---
+
+### Step 3 — Install OpenCV and matplot++
+
+```powershell
+cd C:\vcpkg
+.\vcpkg.exe install opencv4:x64-windows
+.\vcpkg.exe install matplotplusplus:x64-windows
+```
+
+> **Note:** This downloads and compiles both libraries. Expect 20–40 minutes total.
+
+Verify after install:
+
+```powershell
+# OpenCV headers — vcpkg puts them one level deeper than expected:
+ls C:\vcpkg\installed\x64-windows\include\opencv4\opencv2\opencv.hpp
+
+# matplot++ headers:
+ls C:\vcpkg\installed\x64-windows\include\matplot\matplot.h
+```
+
+---
+
+### Step 4 — Install gnuplot
+
+```powershell
+winget install gnuplot.gnuplot
+```
+
+Or download the installer from https://sourceforge.net/projects/gnuplot/  
+Default install path: `C:\Program Files\gnuplot\bin\gnuplot.exe`
+
+Verify:
+
+```powershell
+gnuplot --version
+# Expected: gnuplot 6.0 patchlevel 4
+```
+
+---
+
+### Step 5 — Download gif.h
+
+`gif.h` is a single public-domain header — download it manually:
+
+```powershell
+Invoke-WebRequest `
+  -Uri "https://raw.githubusercontent.com/charlietangora/gif-h/master/gif.h" `
+  -OutFile "D:\path\to\your\project\include\gif.h"
+```
+
+Replace `D:\path\to\your\project\` with your actual project root.
+
+---
+
+### Step 6 — Configure Visual Studio
+
+The project includes `InfluenceLine.props` which configures all include paths, library paths, and DLL post-build copy automatically.
+
+1. Open your solution in Visual Studio
+2. **View → Property Manager**
+3. Right-click **Ploting** → *Add Existing Property Sheet* → select `InfluenceLine.props`
+4. Repeat for **Aplication**
+5. **Build → Rebuild Solution**
+
+> If vcpkg `integrate install` worked correctly in Step 2, the props file may not be strictly necessary — Visual Studio will find all packages automatically.
+
+**Verify DLL copy after build:**
+
+```powershell
+ls "D:\path\to\project\x64\Debug\*.dll" | Select-Object Name
+```
+
+You should see 29 DLLs including `opencv_core4.dll`, `opencv_imgproc4.dll`, etc.
+
+---
+
+### Step 7 — Suppress OpenCV INFO logs (optional)
+
+OpenCV prints INFO messages at startup about optional plugins (TBB, FFMPEG) that are not installed. These are harmless. To hide them, the code already calls:
+
+```cpp
+cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_WARNING);
+```
+
+This is done automatically in `Ploting.cpp` — no action needed.
+
+---
+
+## Building
+
+### With CMake (recommended)
+
+```bash
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
+cmake --build . --config Release
+```
+
+### With MSVC (manual — analysis core only, no plotting)
+
+```bat
+cl /std:c++20 /O2 /EHsc /utf-8 ^
+   src\Aplication.cpp src\Input.cpp src\Isostatique.cpp ^
+   src\Hyperstatique.cpp src\Loading.cpp src\Output.cpp src\UpdatePositions.cpp ^
+   /I include ^
+   /Fe:InfluenceLineContinuousBeam.exe
+```
+
+> To include the plotting pipeline, also compile `src\Ploting.cpp` and link against OpenCV and matplot++ libs. Use `InfluenceLine.props` for the correct lib names and paths.
 
 ---
 
@@ -112,36 +300,32 @@ Moment of Inertia: 1e-6 1e-6 1e-6
 
 # Distributed loads:  intensities /Distributed/ offsets :: name
 45 /Distributed/ 0 3 :: UDL 1
+45 10 25 /Distributed/ 0 3 5 2 :: UDL 2
 ```
 
-**Point load syntax:** `intensity1 intensity2 ... /Point/ offset1 offset2 ... :: load name`
+**Point load syntax:** `intensity1 intensity2 ... /Point/ offset1 offset2 ... :: load name`  
 **Distributed load syntax:** `intensity1 intensity2 ... /Distributed/ initial_offset length1 length2 ... :: load name`
 
 ---
 
-## Building
+## Visual Customisation
 
-The project requires a C++20-compatible compiler. Recommended: MSVC 2022, GCC 12+, or Clang 15+.
+All plot parameters are controlled by `plot_config.json` in the output root. The file is created automatically on first run with defaults. Edit it and re-run — no recompilation needed.
 
-### With CMake (recommended)
-
-```bash
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build . --config Release
+```json
+{
+  "figure":     { "width": 1280, "height": 720 },
+  "curves": [
+    { "color": "#1E5FA8", "thickness": 2.5, "filled": false, "fill_alpha": 0.15 }
+  ],
+  "legend":     { "show": true, "position": "top-right", "font_scale": 0.40 },
+  "labels":     { "title_scale": 0.65, "axis_scale": 0.38, "xlabel": "Support distance (m)" },
+  "grid":       { "show": true, "major_color": "#D8D8D8", "background": "#FFFFFF" },
+  "nodes":      { "show": true, "color": "#CC2222", "radius": 5 },
+  "span_line":  { "show": true, "color": "#AAAAAA", "thickness": 1 },
+  "animation":  { "fps": 20, "show_cursor": true, "show_point": true }
+}
 ```
-
-### With MSVC (manual)
-
-```
-cl /std:c++20 /O2 /EHsc /utf-8 ^
-   src\Aplication.cpp src\Input.cpp src\Isostatique.cpp ^
-   src\Hyperstatique.cpp src\Loading.cpp src\Output.cpp src\UpdatePositions.cpp ^
-   /I headers ^
-   /Fe:InfluenceLineContinuousBeam.exe
-```
-
-No external libraries are needed — `nlohmann/json` is bundled under `headers/nlohmann/`.
 
 ---
 
@@ -153,11 +337,10 @@ No external libraries are needed — `nlohmann/json` is bundled under `headers/n
 
 On startup the program:
 1. Reads `structural model input.txt` (created automatically on first run)
-2. Runs the full structural analysis
+2. Runs the full structural analysis (~23 seconds for a 3-span beam at 1 m steps)
 3. Exports all JSON results to the output directories
 4. Rewrites the input file with optimal load positions in `05_Load_Positioning/`
-
-The console reports the analysis duration in milliseconds and the output root path.
+5. Generates static plots (PNG), animations (MP4 + GIF), and global envelope plots
 
 ---
 
@@ -173,6 +356,11 @@ main()
       ├── Phase 3a — Global load envelopes       [4 async tasks]
       └── Phase 3b — Critical section envelopes  [4 async tasks]
  └── UpdatePositions::run()             # rewrite input with optimal positions
+ └── plotting::run()                    # Ploting.lib
+      ├── Phase 1 — Structural animations (MP4 + GIF)   [parallel, pure OpenCV]
+      ├── Phase 2 — Static plots (PNG)                  [sequential, matplot++]
+      ├── Phase 3 — Curvature animations (MP4 + GIF)    [parallel, pure OpenCV]
+      └── Phase 4 — Global envelope plots (PNG)         [sequential, pure OpenCV]
 ```
 
 ### Key Classes
@@ -186,16 +374,30 @@ main()
 | `UpdatePositions` | Post-processes the load envelope JSON to rewrite the input config |
 | `JsonStreamWriter` | Writes large 3D tensors to disk span-by-span to limit peak RAM |
 
+### Plotting modules
+
+| File | Role |
+|---|---|
+| `render_common.hpp` | Shared OpenCV drawing engine: curves, grid, axes, legend, nodes, max lines, peak annotation |
+| `plot_config.hpp` | Full visual config struct backed by `plot_config.json` |
+| `plot_results.hpp` | Static PNG renderer using `render_common` |
+| `animate_results.hpp` | MP4 + GIF renderer using `render_common` + gif.h |
+| `envelope_plots.hpp` | Global envelope plots: influence line + load position markers |
+| `gnuplot_init.hpp` | Prepends gnuplot bin to PATH before matplot++ is used |
+| `gif_writer.hpp` | Thin wrapper around gif.h for animated GIF output |
+
 ---
 
-## Dependencies
+## Troubleshooting
 
-| Dependency | Version | Bundled |
+| Error | Cause | Fix |
 |---|---|---|
-| [nlohmann/json](https://github.com/nlohmann/json) | 3.11.3 | `headers/nlohmann/json.hpp` |
-| C++ standard library (`<future>`, `<filesystem>`) | C++20 | — |
-
-No other external dependencies.
+| `cannot open opencv2/opencv.hpp` | Include path missing `opencv4\` subfolder | Import `InfluenceLine.props` in Visual Studio Property Manager |
+| `opencv_world4120.lib not found` | vcpkg builds separate modules, not a world lib | Use `opencv_core4.lib`, `opencv_imgproc4.lib`, etc. — already in `.props` |
+| `popen() failed` | gnuplot not on PATH | Run `winget install gnuplot.gnuplot`, then rebuild |
+| `cannot open gif.h` | File not downloaded | Run the `Invoke-WebRequest` command in Step 5 above |
+| `VideoWriter: cannot open` | MSMF backend unavailable | Requires Windows 8+ — should work on all modern Windows |
+| `[INFO] ONETBB/TBB FAILED` | Optional parallel plugins not installed | Harmless — OpenCV falls back to built-in implementation |
 
 ---
 
@@ -203,17 +405,18 @@ No other external dependencies.
 
 Copyright © Tsaraloh A. Christinot — All rights reserved.
 
-This software is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+This software is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.  
 You may use, modify, and distribute this software under the terms of the AGPL-3.0. Any modified version made available over a network must also be released under the same license.
 
 See the full license text at: https://www.gnu.org/licenses/agpl-3.0.html
 
-`json.hpp` is distributed under the MIT License — © 2013–2023 Niels Lohmann.
+`json.hpp` is distributed under the MIT License — © 2013–2023 Niels Lohmann.  
+`gif.h` is distributed under the MIT License — © Charlie Tangora.
 
 ---
 
 ## Contact
 
-**Tsaraloh A. Christinot**
-✉️ tsaralohachristinot@gmail.com
+**Tsaraloh A. Christinot**  
+✉️ tsaralohachristinot@gmail.com  
 📞 +261 34 30 524 02

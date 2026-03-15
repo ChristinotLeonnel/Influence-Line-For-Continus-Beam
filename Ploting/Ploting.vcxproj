@@ -201,6 +201,7 @@
     <ClInclude Include="include\plot_config.hpp" />
     <ClInclude Include="include\plot_context.hpp" />
     <ClInclude Include="include\plot_results.hpp" />
+    <ClInclude Include="include\render_common.hpp" />
     <ClInclude Include="include\thread_pool.hpp" />
   </ItemGroup>
   <ItemGroup>
