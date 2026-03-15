@@ -1,32 +1,38 @@
 #include "Output.h"
 #include "Input.h"
 #include "UpdatePositions.h"
+#include "Ploting.h"          // ← Ploting.lib
 
 #include <chrono>
 #include <iostream>
+#include <fstream>
+
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
 
 int main() {
-
     // ── Chargement de la configuration ────────────────────────────────────────
     Configuration config;
     config.loadFromFile();
 
-    std::ifstream fichier("path.json");
-
-    if (!fichier.is_open()) {
-        std::cerr << "Erreur : impossible d'ouvrir le fichier !" << std::endl;
+    // ── Lecture de path.json (même dossier que l'exe) ─────────────────────────
+    std::string configPath;
+    {
+        std::ifstream fichier("path.json");
+        if (!fichier.is_open()) {
+            std::cerr << "Erreur : impossible d'ouvrir path.json\n";
+            return 1;
+        }
+        try {
+            json data;
+            fichier >> data;
+            configPath = data["configPath"].get<std::string>();
+        }
+        catch (const json::parse_error& ex) {
+            std::cerr << "Erreur de parsing path.json : " << ex.what() << "\n";
+            return 1;
+        }
     }
-
-    // Parser le JSON
-    json data;
-    try {
-        fichier >> data;
-    }
-    catch (const json::parse_error& e) {
-        std::cerr << "Erreur de parsing : " << e.what() << std::endl;
-    }
-
-    auto configPath = data["configPath"].get<std::string>();
 
     // ── Analyse structurelle ──────────────────────────────────────────────────
     auto start = std::chrono::high_resolution_clock::now();
@@ -35,18 +41,24 @@ int main() {
 
     auto end = std::chrono::high_resolution_clock::now();
     std::cout << "Analysis Time :: "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-              << " ms\n";
+        << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+        << " ms\n";
 
     // ── Mise à jour des positions de charges ──────────────────────────────────
-    //  Lit  : 04_Load_Envelopes/[Global|Critical_Section]/<type>/<grandeur>.json
-    //  Écrit: 05_Load_Positioning/[Global|Critical_Section]/<type>/<grandeur>.txt
     try {
-        UpdatePositions updater(configPath);   // chemin = getConfigPath() automatiquement
+        UpdatePositions updater(configPath);
         updater.run();
     }
-    catch (const std::exception& e) {
-        std::cerr << "UpdatePositions error: " << e.what() << "\n";
+    catch (const std::exception& ex) {
+        std::cerr << "UpdatePositions error: " << ex.what() << "\n";
+    }
+
+    // ── Génération des plots et animations (Ploting.lib) ─────────────────────
+    try {
+        plotting::run(configPath);
+    }
+    catch (const std::exception& ex) {
+        std::cerr << "Plotting error: " << ex.what() << "\n";
     }
 
     return 0;

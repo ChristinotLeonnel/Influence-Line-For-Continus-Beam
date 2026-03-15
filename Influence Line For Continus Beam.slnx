@@ -4,4 +4,5 @@
     <Platform Name="x86" />
   </Configurations>
   <Project Path="Influence Line For Continus Beam/Influence Line For Continus Beam.vcxproj" Id="8c0fc12d-0fc6-4e04-a0bb-63c332d8d46e" />
+  <Project Path="Ploting/Ploting.vcxproj" Id="fcfaa4c8-b878-45d3-a18c-030f81eff5c7" />
 </Solution>

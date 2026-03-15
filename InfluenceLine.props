@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  InfluenceLine.props — import into BOTH Ploting and Aplication projects.
+  View → Property Manager → right-click project → Add Existing Property Sheet
+
+  OpenCV installed as separate modules (no opencv_world in this build):
+    Release libs: opencv_core4.lib, opencv_imgproc4.lib, opencv_videoio4.lib, ...
+    Debug libs:   opencv_core4d.lib, opencv_imgproc4d.lib, ...
+    DLLs:         opencv_core4.dll, opencv_imgproc4.dll, ...  (in bin\)
+    matplot:      matplot.lib  (no DLL — static lib)
+-->
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <PropertyGroup Label="UserPaths">
+    <VcpkgRoot>C:\vcpkg</VcpkgRoot>
+    <VcpkgTriplet>x64-windows</VcpkgTriplet>
+    <ProjectRoot>$(MSBuildThisFileDirectory)</ProjectRoot>
+  </PropertyGroup>
+
+  <PropertyGroup Label="DerivedPaths">
+    <VcpkgInclude>$(VcpkgRoot)\installed\$(VcpkgTriplet)\include</VcpkgInclude>
+    <VcpkgIncludeOpenCV>$(VcpkgRoot)\installed\$(VcpkgTriplet)\include\opencv4</VcpkgIncludeOpenCV>
+    <VcpkgLib>$(VcpkgRoot)\installed\$(VcpkgTriplet)\lib</VcpkgLib>
+    <VcpkgLibDebug>$(VcpkgRoot)\installed\$(VcpkgTriplet)\debug\lib</VcpkgLibDebug>
+    <VcpkgBin>$(VcpkgRoot)\installed\$(VcpkgTriplet)\bin</VcpkgBin>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(VcpkgIncludeOpenCV);$(VcpkgInclude);$(ProjectRoot)include;$(ProjectRoot)third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalOptions>/bigobj /utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <DisableSpecificWarnings>4505;4996;26495;26451;4244</DisableSpecificWarnings>
+    </ClCompile>
+
+    <!-- ── Release ── -->
+    <Link Condition="'$(Configuration)'=='Release'">
+      <AdditionalLibraryDirectories>$(VcpkgLib);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>
+        matplot.lib;
+        opencv_core4.lib;
+        opencv_imgproc4.lib;
+        opencv_imgcodecs4.lib;
+        opencv_videoio4.lib;
+        opencv_highgui4.lib;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
+    </Link>
+
+    <!-- ── Debug ── -->
+    <Link Condition="'$(Configuration)'=='Debug'">
+      <AdditionalLibraryDirectories>$(VcpkgLibDebug);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>
+        matplot.lib;
+        opencv_core4d.lib;
+        opencv_imgproc4d.lib;
+        opencv_imgcodecs4d.lib;
+        opencv_videoio4d.lib;
+        opencv_highgui4d.lib;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <!-- ── Post-build: copy ALL vcpkg DLLs next to .exe ────────────────────── -->
+  <!-- Uses xcopy /Y /D : overwrite + only if newer                          -->
+  <ItemDefinitionGroup>
+    <PostBuildEvent>
+      <Command>
+xcopy /Y /D "$(VcpkgBin)\abseil_dll.dll"          "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\jpeg62.dll"              "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\liblzma.dll"             "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\libpng16.dll"            "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\libprotobuf-lite.dll"    "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\libprotobuf.dll"         "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\libprotoc.dll"           "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\libsharpyuv.dll"         "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\libwebp.dll"             "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\libwebpdecoder.dll"      "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\libwebpdemux.dll"        "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\libwebpmux.dll"          "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\opencv_calib3d4.dll"     "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\opencv_core4.dll"        "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\opencv_dnn4.dll"         "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\opencv_features2d4.dll"  "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\opencv_flann4.dll"       "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\opencv_highgui4.dll"     "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\opencv_imgcodecs4.dll"   "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\opencv_imgproc4.dll"     "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\opencv_ml4.dll"          "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\opencv_objdetect4.dll"   "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\opencv_photo4.dll"       "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\opencv_stitching4.dll"   "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\opencv_video4.dll"       "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\opencv_videoio4.dll"     "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\tiff.dll"                "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\turbojpeg.dll"           "$(OutDir)"
+xcopy /Y /D "$(VcpkgBin)\zlib1.dll"               "$(OutDir)"
+      </Command>
+      <Message>Copying vcpkg DLLs to output directory...</Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+
+</Project>

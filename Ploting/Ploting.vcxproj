@@ -21,32 +21,32 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{8c0fc12d-0fc6-4e04-a0bb-63c332d8d46e}</ProjectGuid>
-    <RootNamespace>InfluenceLineForContinusBeam</RootNamespace>
+    <ProjectGuid>{fcfaa4c8-b878-45d3-a18c-030f81eff5c7}</ProjectGuid>
+    <RootNamespace>Ploting</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
@@ -75,23 +75,15 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>$(SolutionDir)bin\&amp;(Configuration)\$(Platforms)</OutDir>
-    <IntDir>$(SolutionDir)bin\int\&amp;(Configuration)\$(Platforms)</IntDir>
     <LibraryPath>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>$(SolutionDir)bin\&amp;(Configuration)\$(Platforms)</OutDir>
-    <IntDir>$(SolutionDir)bin\int\&amp;(Configuration)\$(Platforms)</IntDir>
     <LibraryPath>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <OutDir>$(SolutionDir)bin\&amp;(Configuration)\$(Platforms)</OutDir>
-    <IntDir>$(SolutionDir)bin\int\&amp;(Configuration)\$(Platforms)</IntDir>
     <LibraryPath>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>$(SolutionDir)bin\&amp;(Configuration)\$(Platforms)</OutDir>
-    <IntDir>$(SolutionDir)bin\int\&amp;(Configuration)\$(Platforms)</IntDir>
     <LibraryPath>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -101,7 +93,7 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\Lib\site-packages\numpy\_core\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\include;$(SolutionDir)Influence Line For Continus Beam\dependency;$(SolutionDir)Influence Line For Continus Beam\headers;$(SolutionDir)Ploting\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\vcpkg\installed\x64-windows\include\opencv4;$(SolutionDir)Influence Line For Continus Beam\headers;$(SolutionDir)Ploting\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\Lib\site-packages\numpy\_core\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\include;$(SolutionDir)Ploting\dependency</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -117,7 +109,7 @@
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\Lib\site-packages\numpy\_core\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\include;$(SolutionDir)Influence Line For Continus Beam\dependency;$(SolutionDir)Influence Line For Continus Beam\headers;$(SolutionDir)Ploting\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\vcpkg\installed\x64-windows\include\opencv4;$(SolutionDir)Influence Line For Continus Beam\headers;$(SolutionDir)Ploting\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\Lib\site-packages\numpy\_core\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\include;$(SolutionDir)Ploting\dependency</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -131,7 +123,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\Lib\site-packages\numpy\_core\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\include;$(SolutionDir)Influence Line For Continus Beam\dependency;$(SolutionDir)Influence Line For Continus Beam\headers;$(SolutionDir)Ploting\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\vcpkg\installed\x64-windows\include\opencv4;$(SolutionDir)Influence Line For Continus Beam\headers;$(SolutionDir)Ploting\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\Lib\site-packages\numpy\_core\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\include;$(SolutionDir)Ploting\dependency</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -147,7 +139,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\Lib\site-packages\numpy\_core\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\include;$(SolutionDir)Influence Line For Continus Beam\dependency;$(SolutionDir)Influence Line For Continus Beam\headers;$(SolutionDir)Ploting\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\vcpkg\installed\x64-windows\include\opencv4;$(SolutionDir)Influence Line For Continus Beam\headers;$(SolutionDir)Ploting\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\Lib\site-packages\numpy\_core\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\include;$(SolutionDir)Ploting\dependency</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -155,39 +147,64 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="headers\Hyperstatique.h" />
-    <ClInclude Include="headers\Input.h" />
-    <ClInclude Include="headers\Isostatique.h" />
-    <ClInclude Include="headers\JsonStreamWriter.h" />
-    <ClInclude Include="headers\Loading.h" />
-    <ClInclude Include="headers\nlohmann\json.hpp" />
-    <ClInclude Include="headers\nlohmann\json_fwd.hpp" />
-    <ClInclude Include="headers\Output.h" />
-    <ClInclude Include="headers\ProjectPaths.h" />
-    <ClInclude Include="headers\SpanResult.h" />
-    <ClInclude Include="headers\UpdatePositions.h" />
-    <ClInclude Include="headers\Utils.h" />
+    <ClInclude Include="dependency\matplotlib-cpp\matplotlibcpp.h" />
+    <ClInclude Include="dependency\nlohmann\json.hpp" />
+    <ClInclude Include="dependency\nlohmann\json_fwd.hpp" />
+    <ClInclude Include="dependency\opencv2\opencv.hpp" />
+    <ClInclude Include="dependency\sciplot\Canvas.hpp" />
+    <ClInclude Include="dependency\sciplot\ColumnIndex.hpp" />
+    <ClInclude Include="dependency\sciplot\Constants.hpp" />
+    <ClInclude Include="dependency\sciplot\Default.hpp" />
+    <ClInclude Include="dependency\sciplot\Enums.hpp" />
+    <ClInclude Include="dependency\sciplot\Figure.hpp" />
+    <ClInclude Include="dependency\sciplot\Palettes.hpp" />
+    <ClInclude Include="dependency\sciplot\Plot.hpp" />
+    <ClInclude Include="dependency\sciplot\Plot2D.hpp" />
+    <ClInclude Include="dependency\sciplot\Plot3D.hpp" />
+    <ClInclude Include="dependency\sciplot\sciplot.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\AxisLabelSpecs.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\BorderSpecs.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\DepthSpecsOf.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\DrawSpecs.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\FilledCurvesSpecsOf.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\FillSpecsOf.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\FillStyleSpecs.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\FontSpecsOf.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\FrameSpecsOf.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\GridSpecs.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\GridSpecsBase.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\HistogramStyleSpecs.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\LabelSpecs.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\LayoutSpecs.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\LegendSpecs.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\LineSpecsOf.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\OffsetSpecsOf.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\PointSpecsOf.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\ShowSpecsOf.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\Specs.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\TextSpecsOf.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\TicsSpecs.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\TicsSpecsBaseOf.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\TicsSpecsMajor.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\TicsSpecsMinor.hpp" />
+    <ClInclude Include="dependency\sciplot\specs\TitleSpecsOf.hpp" />
+    <ClInclude Include="dependency\sciplot\StringOrDouble.hpp" />
+    <ClInclude Include="dependency\sciplot\Utils.hpp" />
+    <ClInclude Include="dependency\sciplot\Vec.hpp" />
+    <ClInclude Include="include\animate_results.hpp" />
+    <ClInclude Include="include\data_paths.hpp" />
+    <ClInclude Include="dependency\gif.h" />
+    <ClInclude Include="include\gif_writer.hpp" />
+    <ClInclude Include="include\gnuplot_init.hpp" />
+    <ClInclude Include="include\json_loader.hpp" />
+    <ClInclude Include="include\Ploting.h" />
+    <ClInclude Include="include\plot_config.hpp" />
+    <ClInclude Include="include\plot_context.hpp" />
+    <ClInclude Include="include\plot_results.hpp" />
+    <ClInclude Include="include\thread_pool.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\Aplication.cpp" />
-    <ClCompile Include="src\Hyperstatique.cpp" />
-    <ClCompile Include="src\Input.cpp" />
-    <ClCompile Include="src\Isostatique.cpp" />
-    <ClCompile Include="src\Loading.cpp" />
-    <ClCompile Include="src\Output.cpp" />
-    <ClCompile Include="src\UpdatePositions.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="doc\Architecture_Optimisation.docx" />
-    <None Include="path.json" />
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="doc\Steps.txt" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Ploting\Ploting.vcxproj">
-      <Project>{fcfaa4c8-b878-45d3-a18c-030f81eff5c7}</Project>
-    </ProjectReference>
+    <ClCompile Include="src\Ploting.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
