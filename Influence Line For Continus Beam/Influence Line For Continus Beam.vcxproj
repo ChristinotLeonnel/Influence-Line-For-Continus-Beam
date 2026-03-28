@@ -75,23 +75,23 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>$(SolutionDir)bin\&amp;(Configuration)\$(Platforms)</OutDir>
-    <IntDir>$(SolutionDir)bin\int\&amp;(Configuration)\$(Platforms)</IntDir>
+    <OutDir>$(SolutionDir)bin\$(Platforms)\$(Configuration)</OutDir>
+    <IntDir>$(SolutionDir)bin\Inter\$(Platforms)\$(Configuration)</IntDir>
     <LibraryPath>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>$(SolutionDir)bin\&amp;(Configuration)\$(Platforms)</OutDir>
-    <IntDir>$(SolutionDir)bin\int\&amp;(Configuration)\$(Platforms)</IntDir>
+    <OutDir>$(SolutionDir)bin\$(Platforms)\$(Configuration)</OutDir>
+    <IntDir>$(SolutionDir)bin\Inter\$(Platforms)\$(Configuration)</IntDir>
     <LibraryPath>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <OutDir>$(SolutionDir)bin\&amp;(Configuration)\$(Platforms)</OutDir>
-    <IntDir>$(SolutionDir)bin\int\&amp;(Configuration)\$(Platforms)</IntDir>
+    <OutDir>$(SolutionDir)bin\$(Platforms)\$(Configuration)</OutDir>
+    <IntDir>$(SolutionDir)bin\Inter\$(Platforms)\$(Configuration)</IntDir>
     <LibraryPath>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>$(SolutionDir)bin\&amp;(Configuration)\$(Platforms)</OutDir>
-    <IntDir>$(SolutionDir)bin\int\&amp;(Configuration)\$(Platforms)</IntDir>
+    <OutDir>$(SolutionDir)bin\$(Platforms)\$(Configuration)</OutDir>
+    <IntDir>$(SolutionDir)bin\Inter\$(Platforms)\$(Configuration)</IntDir>
     <LibraryPath>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">

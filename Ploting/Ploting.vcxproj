@@ -76,15 +76,23 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LibraryPath>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\libs;$(LibraryPath)</LibraryPath>
+    <OutDir>$(SolutionDir)bin\$(Platforms)\$(Configuration)</OutDir>
+    <IntDir>$(SolutionDir)bin\Inter\$(Platforms)\$(Configuration)</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LibraryPath>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\libs;$(LibraryPath)</LibraryPath>
+    <OutDir>$(SolutionDir)bin\$(Platforms)\$(Configuration)</OutDir>
+    <IntDir>$(SolutionDir)bin\Inter\$(Platforms)\$(Configuration)</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LibraryPath>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\libs;$(LibraryPath)</LibraryPath>
+    <OutDir>$(SolutionDir)bin\$(Platforms)\$(Configuration)</OutDir>
+    <IntDir>$(SolutionDir)bin\Inter\$(Platforms)\$(Configuration)</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LibraryPath>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\libs;$(LibraryPath)</LibraryPath>
+    <OutDir>$(SolutionDir)bin\$(Platforms)\$(Configuration)</OutDir>
+    <IntDir>$(SolutionDir)bin\Inter\$(Platforms)\$(Configuration)</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -194,6 +202,7 @@
     <ClInclude Include="include\animate_results.hpp" />
     <ClInclude Include="include\data_paths.hpp" />
     <ClInclude Include="dependency\gif.h" />
+    <ClInclude Include="include\envelope_plots.hpp" />
     <ClInclude Include="include\gif_writer.hpp" />
     <ClInclude Include="include\gnuplot_init.hpp" />
     <ClInclude Include="include\json_loader.hpp" />

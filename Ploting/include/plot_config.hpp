@@ -124,14 +124,14 @@ struct PlotConfig {
 
     // Curve styles — up to 8, cycles for more curves
     std::vector<CurveStyle> curves = {
-        {"#1E5FA8", 2.5, false, 0.15},
-        {"#C84B20", 2.5, false, 0.15},
-        {"#1E9E50", 2.5, false, 0.15},
-        {"#8B44A8", 2.5, false, 0.15},
-        {"#C8A020", 2.5, false, 0.15},
-        {"#20A0A0", 2.5, false, 0.15},
-        {"#A84444", 2.5, false, 0.15},
-        {"#4444A8", 2.5, false, 0.15},
+        {"#1E5FA8", 1, false, 0.15},
+        {"#C84B20", 1, false, 0.15},
+        {"#1E9E50", 1, false, 0.15},
+        {"#8B44A8", 1, false, 0.15},
+        {"#C8A020", 1, false, 0.15},
+        {"#20A0A0", 1, false, 0.15},
+        {"#A84444", 1, false, 0.15},
+        {"#4444A8", 1, false, 0.15},
     };
 
     // Legacy compat fields (still read from JSON if present)

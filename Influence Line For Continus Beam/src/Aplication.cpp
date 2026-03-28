@@ -45,6 +45,8 @@ int main() {
         << " ms\n";
 
     // ── Mise à jour des positions de charges ──────────────────────────────────
+    start = std::chrono::high_resolution_clock::now();
+
     try {
         UpdatePositions updater(configPath);
         updater.run();
@@ -53,7 +55,14 @@ int main() {
         std::cerr << "UpdatePositions error: " << ex.what() << "\n";
     }
 
+    end = std::chrono::high_resolution_clock::now();
+    std::cout << "UpdatePosition Time :: "
+        << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+        << " ms\n";
+
     // ── Génération des plots et animations (Ploting.lib) ─────────────────────
+    start = std::chrono::high_resolution_clock::now();
+
     try {
         plotting::run(configPath);
     }
@@ -61,5 +70,9 @@ int main() {
         std::cerr << "Plotting error: " << ex.what() << "\n";
     }
 
+    end = std::chrono::high_resolution_clock::now();
+    std::cout << "Plots and Animations Time :: "
+        << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+        << " ms\n";
     return 0;
 }
