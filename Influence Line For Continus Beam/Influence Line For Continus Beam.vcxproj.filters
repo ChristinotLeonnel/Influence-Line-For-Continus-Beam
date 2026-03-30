@@ -21,57 +21,57 @@
     <ClInclude Include="headers\nlohmann\json_fwd.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="headers\Hyperstatique.h">
+    <ClInclude Include="src\core\Hyperstatique.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="headers\Input.h">
+    <ClInclude Include="src\io\Input.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="headers\Isostatique.h">
+    <ClInclude Include="src\core\Isostatique.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="headers\JsonStreamWriter.h">
+    <ClInclude Include="src\io\JsonStreamWriter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="headers\Loading.h">
+    <ClInclude Include="src\io\Loading.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="headers\Output.h">
+    <ClInclude Include="src\io\Output.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="headers\ProjectPaths.h">
+    <ClInclude Include="src\io\ProjectPaths.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="headers\SpanResult.h">
+    <ClInclude Include="src\core\SpanResult.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="headers\UpdatePositions.h">
+    <ClInclude Include="src\io\UpdatePositions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="headers\Utils.h">
+    <ClInclude Include="src\utils\Utils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\Aplication.cpp">
+    <ClCompile Include="src\app\Aplication.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Hyperstatique.cpp">
+    <ClCompile Include="src\core\Hyperstatique.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Input.cpp">
+    <ClCompile Include="src\io\Input.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Isostatique.cpp">
+    <ClCompile Include="src\core\Isostatique.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Loading.cpp">
+    <ClCompile Include="src\io\Loading.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Output.cpp">
+    <ClCompile Include="src\io\Output.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\UpdatePositions.cpp">
+    <ClCompile Include="src\io\UpdatePositions.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

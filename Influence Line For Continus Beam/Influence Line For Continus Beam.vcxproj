@@ -75,23 +75,23 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>$(SolutionDir)bin\$(Platforms)\$(Configuration)</OutDir>
-    <IntDir>$(SolutionDir)bin\Inter\$(Platforms)\$(Configuration)</IntDir>
+    <OutDir>$(SolutionDir)binaries\$(Configuration)-$(Platform)\$(TargetName)</OutDir>
+    <IntDir>$(SolutionDir)binaries\Intermediates\$(Configuration)-$(Platform)\$(TargetName)</IntDir>
     <LibraryPath>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>$(SolutionDir)bin\$(Platforms)\$(Configuration)</OutDir>
-    <IntDir>$(SolutionDir)bin\Inter\$(Platforms)\$(Configuration)</IntDir>
+    <OutDir>$(SolutionDir)binaries\$(Configuration)-$(Platform)\$(TargetName)</OutDir>
+    <IntDir>$(SolutionDir)binaries\Intermediates\$(Configuration)-$(Platform)\$(TargetName)</IntDir>
     <LibraryPath>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <OutDir>$(SolutionDir)bin\$(Platforms)\$(Configuration)</OutDir>
-    <IntDir>$(SolutionDir)bin\Inter\$(Platforms)\$(Configuration)</IntDir>
+    <OutDir>$(SolutionDir)binaries\$(Configuration)-$(Platform)\$(TargetName)</OutDir>
+    <IntDir>$(SolutionDir)binaries\Intermediates\$(Configuration)-$(Platform)\$(TargetName)</IntDir>
     <LibraryPath>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>$(SolutionDir)bin\$(Platforms)\$(Configuration)</OutDir>
-    <IntDir>$(SolutionDir)bin\Inter\$(Platforms)\$(Configuration)</IntDir>
+    <OutDir>$(SolutionDir)binaries\$(Configuration)-$(Platform)\$(TargetName)</OutDir>
+    <IntDir>$(SolutionDir)binaries\Intermediates\$(Configuration)-$(Platform)\$(TargetName)</IntDir>
     <LibraryPath>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -101,7 +101,7 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\Lib\site-packages\numpy\_core\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\include;$(SolutionDir)Influence Line For Continus Beam\dependency;$(SolutionDir)Influence Line For Continus Beam\headers;$(SolutionDir)Ploting\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\Lib\site-packages\numpy\_core\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\include;$(SolutionDir)Influence Line For Continus Beam\dependency;$(SolutionDir)Influence Line For Continus Beam\src;$(SolutionDir)Ploting\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -117,7 +117,7 @@
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\Lib\site-packages\numpy\_core\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\include;$(SolutionDir)Influence Line For Continus Beam\dependency;$(SolutionDir)Influence Line For Continus Beam\headers;$(SolutionDir)Ploting\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\Lib\site-packages\numpy\_core\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\include;$(SolutionDir)Influence Line For Continus Beam\dependency;$(SolutionDir)Influence Line For Continus Beam\src;$(SolutionDir)Ploting\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -131,7 +131,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\Lib\site-packages\numpy\_core\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\include;$(SolutionDir)Influence Line For Continus Beam\dependency;$(SolutionDir)Influence Line For Continus Beam\headers;$(SolutionDir)Ploting\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\Lib\site-packages\numpy\_core\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\include;$(SolutionDir)Influence Line For Continus Beam\dependency;$(SolutionDir)Influence Line For Continus Beam\src;$(SolutionDir)Ploting\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -147,7 +147,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\Lib\site-packages\numpy\_core\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\include;$(SolutionDir)Influence Line For Continus Beam\dependency;$(SolutionDir)Influence Line For Continus Beam\headers;$(SolutionDir)Ploting\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Christinot\AppData\Local\Programs\Python\Python314\Lib\site-packages\numpy\_core\include;C:\Users\Christinot\AppData\Local\Programs\Python\Python314\include;$(SolutionDir)Influence Line For Continus Beam\dependency;$(SolutionDir)Influence Line For Continus Beam\src;$(SolutionDir)Ploting\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -155,27 +155,27 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="headers\Hyperstatique.h" />
-    <ClInclude Include="headers\Input.h" />
-    <ClInclude Include="headers\Isostatique.h" />
-    <ClInclude Include="headers\JsonStreamWriter.h" />
-    <ClInclude Include="headers\Loading.h" />
+    <ClInclude Include="src\core\Hyperstatique.h" />
+    <ClInclude Include="src\io\Input.h" />
+    <ClInclude Include="src\core\Isostatique.h" />
+    <ClInclude Include="src\io\JsonStreamWriter.h" />
+    <ClInclude Include="src\io\Loading.h" />
     <ClInclude Include="headers\nlohmann\json.hpp" />
     <ClInclude Include="headers\nlohmann\json_fwd.hpp" />
-    <ClInclude Include="headers\Output.h" />
-    <ClInclude Include="headers\ProjectPaths.h" />
-    <ClInclude Include="headers\SpanResult.h" />
-    <ClInclude Include="headers\UpdatePositions.h" />
-    <ClInclude Include="headers\Utils.h" />
+    <ClInclude Include="src\io\Output.h" />
+    <ClInclude Include="src\io\ProjectPaths.h" />
+    <ClInclude Include="src\core\SpanResult.h" />
+    <ClInclude Include="src\io\UpdatePositions.h" />
+    <ClInclude Include="src\utils\Utils.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\Aplication.cpp" />
-    <ClCompile Include="src\Hyperstatique.cpp" />
-    <ClCompile Include="src\Input.cpp" />
-    <ClCompile Include="src\Isostatique.cpp" />
-    <ClCompile Include="src\Loading.cpp" />
-    <ClCompile Include="src\Output.cpp" />
-    <ClCompile Include="src\UpdatePositions.cpp" />
+    <ClCompile Include="src\app\Aplication.cpp" />
+    <ClCompile Include="src\core\Hyperstatique.cpp" />
+    <ClCompile Include="src\io\Input.cpp" />
+    <ClCompile Include="src\core\Isostatique.cpp" />
+    <ClCompile Include="src\io\Loading.cpp" />
+    <ClCompile Include="src\io\Output.cpp" />
+    <ClCompile Include="src\io\UpdatePositions.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="doc\Architecture_Optimisation.docx" />

@@ -16,7 +16,7 @@
 #include <fstream>
 #include <string>
 
-#include "Utils.h"   // getEnvSafe(), getConfigPath()
+#include "utils/Utils.h"   // getEnvSafe(), getConfigPath()
 
 // ── Neutralise les macros Python.h si déjà inclus ────────────────────────────
 #ifdef f
