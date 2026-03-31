@@ -16,7 +16,7 @@
 #include <fstream>
 #include <string>
 
-#include "utils/Utils.h"   // getEnvSafe(), getConfigPath()
+#include "Plottingutils.h"   // getEnvSafe(), getConfigPath()
 
 // ── Neutralise les macros Python.h si déjà inclus ────────────────────────────
 #ifdef f
@@ -86,7 +86,7 @@ inline fs::path influence_line_dir(const fs::path& path_json = "path.json")
     }
 
     // 3 — chemin par défaut depuis Utils.h
-    return getConfigPath();
+    return getDefaultConfigPath();
 }
 
 } // namespace io

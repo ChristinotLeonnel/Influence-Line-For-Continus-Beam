@@ -1,4 +1,4 @@
-#include "Ploting.h"
+#include "Plotting.h"
 
 /**
  * Ploting.cpp

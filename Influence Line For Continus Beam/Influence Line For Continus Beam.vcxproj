@@ -155,27 +155,30 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="src\core\Hyperstatique.h" />
-    <ClInclude Include="src\io\Input.h" />
-    <ClInclude Include="src\core\Isostatique.h" />
+    <ClInclude Include="dependency\nlohmann\json.hpp" />
+    <ClInclude Include="dependency\nlohmann\json_fwd.hpp" />
+    <ClInclude Include="src\core\BeamFormulas.h" />
+    <ClInclude Include="src\core\Continuousbeam.h" />
+    <ClInclude Include="src\io\Structuralconfig.h" />
+    <ClInclude Include="src\core\Isostaticbeam.h" />
     <ClInclude Include="src\io\JsonStreamWriter.h" />
-    <ClInclude Include="src\io\Loading.h" />
+    <ClInclude Include="src\io\Loadenvelope.h" />
     <ClInclude Include="headers\nlohmann\json.hpp" />
     <ClInclude Include="headers\nlohmann\json_fwd.hpp" />
-    <ClInclude Include="src\io\Output.h" />
+    <ClInclude Include="src\io\Resultsexporter.h" />
     <ClInclude Include="src\io\ProjectPaths.h" />
     <ClInclude Include="src\core\SpanResult.h" />
-    <ClInclude Include="src\io\UpdatePositions.h" />
-    <ClInclude Include="src\utils\Utils.h" />
+    <ClInclude Include="src\io\Loadpositioner.h" />
+    <ClInclude Include="src\utils\Beamutils.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\app\Aplication.cpp" />
-    <ClCompile Include="src\core\Hyperstatique.cpp" />
-    <ClCompile Include="src\io\Input.cpp" />
-    <ClCompile Include="src\core\Isostatique.cpp" />
-    <ClCompile Include="src\io\Loading.cpp" />
-    <ClCompile Include="src\io\Output.cpp" />
-    <ClCompile Include="src\io\UpdatePositions.cpp" />
+    <ClCompile Include="src\app\Application.cpp" />
+    <ClCompile Include="src\core\Continuousbeam.cpp" />
+    <ClCompile Include="src\io\Structuralconfig.cpp" />
+    <ClCompile Include="src\core\Isostaticbeam.cpp" />
+    <ClCompile Include="src\io\Loadenvelope.cpp" />
+    <ClCompile Include="src\io\Resultsexporter.cpp" />
+    <ClCompile Include="src\io\Loadpositioner.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="doc\Architecture_Optimisation.docx" />

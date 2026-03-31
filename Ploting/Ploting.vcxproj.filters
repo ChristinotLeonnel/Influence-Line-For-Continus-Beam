@@ -45,7 +45,7 @@
     <ClInclude Include="dependency\nlohmann\json_fwd.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\Ploting.h">
+    <ClInclude Include="include\Plotting.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="dependency\opencv2\opencv.hpp">
@@ -184,6 +184,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\envelope_plots.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Plottingutils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

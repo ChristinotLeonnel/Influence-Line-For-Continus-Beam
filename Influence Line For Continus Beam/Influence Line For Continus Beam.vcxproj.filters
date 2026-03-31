@@ -21,22 +21,22 @@
     <ClInclude Include="headers\nlohmann\json_fwd.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\core\Hyperstatique.h">
+    <ClInclude Include="src\core\Continuousbeam.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\io\Input.h">
+    <ClInclude Include="src\io\Structuralconfig.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\core\Isostatique.h">
+    <ClInclude Include="src\core\Isostaticbeam.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\io\JsonStreamWriter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\io\Loading.h">
+    <ClInclude Include="src\io\Loadenvelope.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\io\Output.h">
+    <ClInclude Include="src\io\Resultsexporter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\io\ProjectPaths.h">
@@ -45,33 +45,42 @@
     <ClInclude Include="src\core\SpanResult.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\io\UpdatePositions.h">
+    <ClInclude Include="src\io\Loadpositioner.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\utils\Utils.h">
+    <ClInclude Include="src\utils\Beamutils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\BeamFormulas.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="dependency\nlohmann\json.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="dependency\nlohmann\json_fwd.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\app\Aplication.cpp">
+    <ClCompile Include="src\app\Application.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\core\Hyperstatique.cpp">
+    <ClCompile Include="src\core\Continuousbeam.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\io\Input.cpp">
+    <ClCompile Include="src\io\Structuralconfig.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\core\Isostatique.cpp">
+    <ClCompile Include="src\core\Isostaticbeam.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\io\Loading.cpp">
+    <ClCompile Include="src\io\Loadenvelope.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\io\Output.cpp">
+    <ClCompile Include="src\io\Resultsexporter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\io\UpdatePositions.cpp">
+    <ClCompile Include="src\io\Loadpositioner.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

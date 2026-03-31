@@ -11,41 +11,33 @@
 //   <root>/
 //    ├── 01_Input/
 //    │   └── structural_model.json
-//    │
 //    ├── 02_Influence_Lines/
-//    │   ├── bending_moment.json        ← [S][N_span][N_total]
+//    │   ├── bending_moment.json
 //    │   ├── shear_force.json
 //    │   ├── deflection.json
 //    │   ├── rotation.json
-//    │   ├── support_moment.json        ← [S+1][N_total]
-//    │   ├── abscissa.json              ← [N_total]
-//    │   ├── shear_abscissa.json        ← [S][N_span][N_total+disc]
-//    │   └── node_lengths.json          ← [S+1]
-//    │
+//    │   ├── support_moment.json
+//    │   ├── abscissa.json
+//    │   ├── shear_abscissa.json
+//    │   └── node_lengths.json
 //    ├── 03_Critical_Values/
-//    │   ├── bending_moment.json        ← { span, section, alpha, value }
+//    │   ├── bending_moment.json
 //    │   ├── shear_force.json
 //    │   ├── deflection.json
 //    │   ├── rotation.json
 //    │   └── support_moment.json
-//    │
 //    ├── 04_Load_Envelopes/
 //    │   ├── Global/
-//    │   │   ├── Point_Load/            ← { maximum, span, section, load }
-//    │   │   │   ├── bending_moment.json
-//    │   │   │   ├── shear_force.json
-//    │   │   │   ├── deflection.json
-//    │   │   │   └── rotation.json
-//    │   │   ├── Distributed_Load/  (idem)
-//    │   │   └── Combined_Load/     (idem)
+//    │   │   ├── Point_Load/
+//    │   │   ├── Distributed_Load/
+//    │   │   └── Combined_Load/
 //    │   └── Critical_Section/
-//    │       ├── Point_Load/        (idem)
-//    │       ├── Distributed_Load/  (idem)
-//    │       └── Combined_Load/     (idem)
-//    │
+//    │       ├── Point_Load/
+//    │       ├── Distributed_Load/
+//    │       └── Combined_Load/
 //    └── 05_Load_Positioning/
 //        ├── Global/
-//        │   ├── Point_Load/            ← fichiers .txt mis à jour
+//        │   ├── Point_Load/
 //        │   ├── Distributed_Load/
 //        │   └── Combined_Load/
 //        └── Critical_Section/
@@ -54,7 +46,7 @@
 //            └── Combined_Load/
 // =============================================================================
 
-#include "utils/Utils.h"
+#include "utils/BeamUtils.h"
 #include <filesystem>
 
 struct ProjectPaths
@@ -91,32 +83,32 @@ struct ProjectPaths
     std::filesystem::path pos_critical_combined;
 
     explicit ProjectPaths(std::filesystem::path r = {})
-        : root(r.empty() ? getConfigPath() : std::move(r))
+        : root(r.empty() ? getDefaultConfigPath() : std::move(r))
     {
-        input            = root / "01_Input";
-        influence_lines  = root / "02_Influence_Lines";
-        critical_values  = root / "03_Critical_Values";
-        load_envelopes   = root / "04_Load_Envelopes";
+        input = root / "01_Input";
+        influence_lines = root / "02_Influence_Lines";
+        critical_values = root / "03_Critical_Values";
+        load_envelopes = root / "04_Load_Envelopes";
         load_positioning = root / "05_Load_Positioning";
 
-        env_global            = load_envelopes / "Global";
-        env_global_point      = env_global / "Point_Load";
-        env_global_dist       = env_global / "Distributed_Load";
-        env_global_combined   = env_global / "Combined_Load";
+        env_global = load_envelopes / "Global";
+        env_global_point = env_global / "Point_Load";
+        env_global_dist = env_global / "Distributed_Load";
+        env_global_combined = env_global / "Combined_Load";
 
-        env_critical          = load_envelopes / "Critical_Section";
-        env_critical_point    = env_critical / "Point_Load";
-        env_critical_dist     = env_critical / "Distributed_Load";
+        env_critical = load_envelopes / "Critical_Section";
+        env_critical_point = env_critical / "Point_Load";
+        env_critical_dist = env_critical / "Distributed_Load";
         env_critical_combined = env_critical / "Combined_Load";
 
-        pos_global            = load_positioning / "Global";
-        pos_global_point      = pos_global / "Point_Load";
-        pos_global_dist       = pos_global / "Distributed_Load";
-        pos_global_combined   = pos_global / "Combined_Load";
+        pos_global = load_positioning / "Global";
+        pos_global_point = pos_global / "Point_Load";
+        pos_global_dist = pos_global / "Distributed_Load";
+        pos_global_combined = pos_global / "Combined_Load";
 
-        pos_critical          = load_positioning / "Critical_Section";
-        pos_critical_point    = pos_critical / "Point_Load";
-        pos_critical_dist     = pos_critical / "Distributed_Load";
+        pos_critical = load_positioning / "Critical_Section";
+        pos_critical_point = pos_critical / "Point_Load";
+        pos_critical_dist = pos_critical / "Distributed_Load";
         pos_critical_combined = pos_critical / "Combined_Load";
     }
 
@@ -127,7 +119,7 @@ struct ProjectPaths
             env_critical_point, env_critical_dist, env_critical_combined,
             pos_global_point, pos_global_dist, pos_global_combined,
             pos_critical_point, pos_critical_dist, pos_critical_combined
-        })
+            })
             std::filesystem::create_directories(d);
     }
 };

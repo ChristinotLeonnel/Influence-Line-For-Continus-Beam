@@ -264,7 +264,7 @@ inline void plot_envelope(
 
 // =============================================================================
 //  run_envelope_plots — Phase 4 entry point
-//  Called from Ploting.cpp after Phase 3
+//  Called from plotting.cpp after Phase 3
 // =============================================================================
 inline void run_envelope_plots(
     const fs::path&                  base_dir,

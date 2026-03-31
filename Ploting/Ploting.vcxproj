@@ -206,7 +206,8 @@
     <ClInclude Include="include\gif_writer.hpp" />
     <ClInclude Include="include\gnuplot_init.hpp" />
     <ClInclude Include="include\json_loader.hpp" />
-    <ClInclude Include="include\Ploting.h" />
+    <ClInclude Include="include\Plotting.h" />
+    <ClInclude Include="include\Plottingutils.h" />
     <ClInclude Include="include\plot_config.hpp" />
     <ClInclude Include="include\plot_context.hpp" />
     <ClInclude Include="include\plot_results.hpp" />

@@ -3,7 +3,7 @@
 #define __SPAN_RESULT__
 
 // =============================================================================
-//  SpanResult — Résultats structurels d'une seule travée
+//  SpanResult — Résultats structuraux d'une travée
 // =============================================================================
 //
 //  Unité de calcul de l'architecture Lazy-Streaming.
@@ -17,35 +17,34 @@
 
 struct SpanResult
 {
-    size_t span_index = 0;   // indice de la travée dans la poutre
-    size_t N          = 0;   // nombre de nœuds de cette travée
-    size_t N_total    = 0;   // nombre total de nœuds de la poutre entière
+    size_t spanIndex = 0;  // indice de la travée dans la poutre
+    size_t N = 0;  // nombre de nœuds de cette travée
+    size_t N_total = 0;  // nombre total de nœuds de la poutre entière
 
     // Chaque grandeur : [section (N lignes)][alpha (N_total colonnes)]
     // SF peut avoir N_total + discontinuités colonnes
-    std::vector<std::vector<double>> BM;   // moment fléchissant
-    std::vector<std::vector<double>> SF;   // effort tranchant
-    std::vector<std::vector<double>> Def;  // flèche
-    std::vector<std::vector<double>> Rot;  // rotation
+    std::vector<std::vector<double>> bendingMoment;  // BM
+    std::vector<std::vector<double>> shearForce;     // SF
+    std::vector<std::vector<double>> deflection;     // Def
+    std::vector<std::vector<double>> rotation;       // Rot
 
     // ── Tracking des maxima locaux à cette travée ──────────────────────────
-    // Valeur absolue maximale trouvée dans chaque grandeur
-    double max_BM  = 0.0;
-    double max_SF  = 0.0;
-    double max_Def = 0.0;
-    double max_Rot = 0.0;
+    double maxBendingMoment = 0.0;
+    double maxShearForce = 0.0;
+    double maxDeflection = 0.0;
+    double maxRotation = 0.0;
 
-    // Section (indice j) où se trouve le max
-    size_t sec_BM  = 0;
-    size_t sec_SF  = 0;
-    size_t sec_Def = 0;
-    size_t sec_Rot = 0;
+    // Section (indice j) où se trouve le maximum
+    size_t maxBM_sectionIdx = 0;
+    size_t maxSF_sectionIdx = 0;
+    size_t maxDef_sectionIdx = 0;
+    size_t maxRot_sectionIdx = 0;
 
-    // Alpha (indice k dans le vecteur de la section) où se trouve le max
-    size_t alpha_BM  = 0;
-    size_t alpha_SF  = 0;
-    size_t alpha_Def = 0;
-    size_t alpha_Rot = 0;
+    // Alpha (indice k dans le vecteur de la section) où se trouve le maximum
+    size_t maxBM_alphaIdx = 0;
+    size_t maxSF_alphaIdx = 0;
+    size_t maxDef_alphaIdx = 0;
+    size_t maxRot_alphaIdx = 0;
 };
 
 #endif // __SPAN_RESULT__

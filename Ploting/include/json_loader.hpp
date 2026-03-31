@@ -19,6 +19,8 @@
 #include <string>
 #include <unordered_map>
 
+#include <nlohmann/json.hpp> 
+
  // ── Supprime le warning C26495 (m_data uninitialized) de l'analyseur MSVC ────
  // nlohmann/json est une lib tierce — ces warnings sont des faux positifs.
 #ifdef _MSC_VER
