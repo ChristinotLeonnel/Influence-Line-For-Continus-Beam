@@ -147,7 +147,7 @@ inline void plot_analysis_results(
     // Save
     if (opts.is_save) {
         const fs::path dir = opts.save_dir.empty()
-            ? (io::influence_line_dir() / "05_Output" / "Plots")
+            ? (io::influence_line_dir() / "06_Plots")
             : opts.save_dir;
         fs::create_directories(dir);
         const fs::path out = dir / (name + ".png");

@@ -11,11 +11,14 @@
  *   3. An annotation box showing: load name, value, position
  *   4. The peak value annotation (reuses draw_peak_annotation from render_common)
  *
- * Output: 05_Output/Plots/Envelopes/{Point_Load,Distributed_Load,Combined_Load}/
- *         one PNG per curve × load type = 12 PNGs total
+ * Output: 06_Plots/Envelopes/{Point_Load,Distributed_Load,Combined_Load}/
+ *         one PNG per curve x load type = 12 PNGs total
  */
 
 #include <filesystem>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -274,7 +277,7 @@ inline void run_envelope_plots(
 {
     const fs::path env_out = plots_dir / "Envelopes";
 
-    std::cout << "=== Phase 4 : Global Envelope Plots ===\n";
+    std::cout << "\n----- Phase 4 : Global Envelope Plots ---------------\n";
 
     for (const auto& lt : load_types()) {
         const fs::path type_out = env_out / lt.dir_name;
@@ -285,16 +288,16 @@ inline void run_envelope_plots(
             const std::string& name = curve_names[i];
             try {
                 plot_envelope(cf, name, lt, base_dir, type_out);
-                std::cout << "    OK     " << name
-                          << " [" << lt.label << "]\n";
+                std::cout << "  [ OK  ]  " << std::left << std::setw(18) << lt.label
+                          << " | " << name << '\n';
             } catch (const std::exception& ex) {
-                std::cout << "    ERR  " << name
-                          << " [" << lt.label << "] : " << ex.what() << "\n";
+                std::cout << "  [ ERR ]  " << std::left << std::setw(18) << lt.label
+                          << " | " << name << " :: " << ex.what() << '\n';
             }
         }
     }
 
-    std::cout << "Phase 4 : Global Envelope Plots completed.\n\n";
+    std::cout << "----- Phase 4 done ----------------------------------\n";
 }
 
 } // namespace envelopes

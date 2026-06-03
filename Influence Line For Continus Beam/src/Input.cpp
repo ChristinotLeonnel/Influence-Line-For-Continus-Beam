@@ -1,67 +1,79 @@
-﻿#include <fstream>
-#include <stdexcept>
-
-#include "Input.h"  
+#include "Input.h"
 #include "Loading.h"
 #include "Utils.h"
 
-#include <vector>
-#include <limits>
 #include <cstdlib>
 #include <filesystem>
-#include <string>
+#include <fstream>
 #include <future>
 #include <iostream>
+#include <limits>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
-void Configuration::loadFromFile() {
-
+// =============================================================================
+//  Configuration::loadFromFile
+//
+//  Lit (ou crée) path.json dans le dossier courant, en extrait le chemin de
+//  travail (configPath), puis charge le fichier "structural model input.txt"
+//  depuis ce chemin (et le crée avec une configuration par défaut si absent).
+// =============================================================================
+void Configuration::loadFromFile()
+{
+    // ── 1.  path.json  (création si absent, lecture sinon) ────────────────────
     std::filesystem::path configPath = getConfigPath();
 
-    if (!checkFileExists("path.json"))
-    {
-        
+    if (!checkFileExists("path.json")) {
+        // Création du fichier path.json avec le chemin par défaut
         json j;
         j["configPath"] = configPath.string();
-        std::filesystem::path configFilePath = "path.json";
-        std::ofstream configFile(configFilePath);
-        if (!configFile.is_open()) {
-            throw std::runtime_error("Erreur: Impossible de créer le fichier path.json");
-        }
-        configFile << j.dump(4); // Indentation de 4 espaces pour la lisibilité
-		configFile.close();
+
+        std::ofstream configFile("path.json");
+        if (!configFile.is_open())
+            throw std::runtime_error(
+                "Erreur : impossible de creer le fichier path.json");
+
+        configFile << j.dump(4);
+        configFile.close();
     }
     else {
-        // Ouvrir le fichier JSON
+        // Lecture de path.json
         std::ifstream fichier("path.json");
+        if (!fichier.is_open())
+            throw std::runtime_error(
+                "Erreur : impossible d'ouvrir path.json");
 
-        if (!fichier.is_open()) {
-            std::cerr << "Erreur : impossible d'ouvrir le fichier !" << std::endl;
-        }
-
-        // Parser le JSON
         json data;
         try {
             fichier >> data;
         }
         catch (const json::parse_error& e) {
-            std::cerr << "Erreur de parsing : " << e.what() << std::endl;
+            throw std::runtime_error(
+                std::string("Erreur de parsing path.json : ") + e.what());
         }
 
-		configPath = data["configPath"].get<std::string>();
+        if (!data.contains("configPath"))
+            throw std::runtime_error(
+                "path.json : cle 'configPath' manquante");
 
+        configPath = data["configPath"].get<std::string>();
     }
 
-    
+    // ── 2.  Repertoire de travail ─────────────────────────────────────────────
     std::filesystem::create_directories(configPath);
 
-    if (!checkFileExists(configPath / "structural model input.txt"))
-        write_structural_model_input("structural model input.txt", configPath); 
+    // ── 3.  structural model input.txt (creation si absent) ──────────────────
+    const auto inputFilePath = configPath / "structural model input.txt";
+    if (!checkFileExists(inputFilePath))
+        write_structural_model_input("structural model input.txt", configPath);
 
-    std::ifstream inputFile(configPath / "structural model input.txt");
-    if (!inputFile.is_open()) {
-        throw std::runtime_error("Erreur: Impossible d'ouvrir le fichier input.txt");
-    }
+    std::ifstream inputFile(inputFilePath);
+    if (!inputFile.is_open())
+        throw std::runtime_error(
+            "Erreur : impossible d'ouvrir " + inputFilePath.string());
 
+    // ── 4.  Parsing ligne par ligne ───────────────────────────────────────────
     std::string line;
     while (std::getline(inputFile, line)) {
         if (line.empty() || line[0] == '#') continue;
@@ -75,7 +87,7 @@ void Configuration::loadFromFile() {
         else if (line.find("Moment of Inertia:") != std::string::npos) {
             Inertie = parseVector(line);
         }
-        else if (line.find("Young Modulus:") != std::string::npos) { 
+        else if (line.find("Young Modulus:") != std::string::npos) {
             YoungModule = parseVector(line);
         }
         else if (line.find("/Point/") != std::string::npos) {
@@ -87,8 +99,7 @@ void Configuration::loadFromFile() {
     }
     inputFile.close();
 
-    if (spans.empty()) {
-        throw std::invalid_argument("Error: No spans provided in input file!");
-    }
-
+    if (spans.empty())
+        throw std::invalid_argument(
+            "Erreur : aucune travee dans le fichier de configuration");
 }

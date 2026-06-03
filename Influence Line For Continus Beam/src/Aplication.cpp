@@ -1,78 +1,102 @@
 #include "Output.h"
 #include "Input.h"
 #include "UpdatePositions.h"
-#include "Ploting.h"          // ← Ploting.lib
+#include "Ploting.h"          // <- Ploting.lib
 
 #include <chrono>
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <stdexcept>
+#include <string>
 
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
-int main() {
+// =============================================================================
+//  Helpers d'affichage (memes que Ploting.cpp pour avoir un journal coherent)
+// =============================================================================
+static void banner(const std::string& title) {
+    std::cout << "\n=====================================================\n";
+    std::cout << "  " << title << '\n';
+    std::cout << "=====================================================\n";
+}
+static void phase(const std::string& title) {
+    std::cout << "\n----- " << title;
+    int written = static_cast<int>(title.size()) + 6;
+    for (int i = written; i < 53; ++i) std::cout << '-';
+    std::cout << '\n';
+}
+
+// =============================================================================
+//  main
+// =============================================================================
+int main()
+{
+    banner("INFLUENCE LINE - Continuous Beam Analysis");
+
     // ── Chargement de la configuration ────────────────────────────────────────
     Configuration config;
-    config.loadFromFile();
+    try {
+        config.loadFromFile();
+    }
+    catch (const std::exception& ex) {
+        std::cerr << "  [ ERR ]  Configuration :: " << ex.what() << '\n';
+        return 1;
+    }
 
-    // ── Lecture de path.json (même dossier que l'exe) ─────────────────────────
+    // ── Lecture de path.json (meme dossier que l'exe) ─────────────────────────
     std::string configPath;
     {
         std::ifstream fichier("path.json");
         if (!fichier.is_open()) {
-            std::cerr << "Erreur : impossible d'ouvrir path.json\n";
+            std::cerr << "  [ ERR ]  path.json :: cannot open\n";
             return 1;
         }
         try {
             json data;
             fichier >> data;
-            configPath = data["configPath"].get<std::string>();
+            configPath = data.at("configPath").get<std::string>();
         }
-        catch (const json::parse_error& ex) {
-            std::cerr << "Erreur de parsing path.json : " << ex.what() << "\n";
+        catch (const std::exception& ex) {
+            std::cerr << "  [ ERR ]  path.json :: " << ex.what() << '\n';
             return 1;
         }
     }
 
-    // ── Analyse structurelle ──────────────────────────────────────────────────
-    auto start = std::chrono::high_resolution_clock::now();
+    // ── Phase A : analyse structurelle ────────────────────────────────────────
+    phase("Phase A : Structural Analysis");
+    const auto start = std::chrono::steady_clock::now();
+    try {
+        Output LI(config.YoungModule, config.Inertie, config.spans,
+                  config.steps, configPath);
+    }
+    catch (const std::exception& ex) {
+        std::cerr << "  [ ERR ]  Analysis :: " << ex.what() << '\n';
+        return 1;
+    }
+    const auto elapsed_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - start).count();
+    std::cout << "  [ OK  ]  Analysis time : " << elapsed_ms << " ms\n";
 
-    Output LI(config.YoungModule, config.Inertie, config.spans, config.steps, configPath);
-
-    auto end = std::chrono::high_resolution_clock::now();
-    std::cout << "Analysis Time :: "
-        << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-        << " ms\n";
-
-    // ── Mise à jour des positions de charges ──────────────────────────────────
-    start = std::chrono::high_resolution_clock::now();
-
+    // ── Phase B : mise a jour des positions de charges ────────────────────────
+    phase("Phase B : Update Load Positions");
     try {
         UpdatePositions updater(configPath);
         updater.run();
     }
     catch (const std::exception& ex) {
-        std::cerr << "UpdatePositions error: " << ex.what() << "\n";
+        std::cerr << "  [ ERR ]  UpdatePositions :: " << ex.what() << '\n';
     }
 
-    end = std::chrono::high_resolution_clock::now();
-    std::cout << "UpdatePosition Time :: "
-        << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-        << " ms\n";
-
-    // ── Génération des plots et animations (Ploting.lib) ─────────────────────
-    start = std::chrono::high_resolution_clock::now();
-
+    // ── Phase C : generation des plots et animations (Ploting.lib) ───────────
     try {
         plotting::run(configPath);
     }
     catch (const std::exception& ex) {
-        std::cerr << "Plotting error: " << ex.what() << "\n";
+        std::cerr << "  [ ERR ]  Plotting :: " << ex.what() << '\n';
     }
 
-    end = std::chrono::high_resolution_clock::now();
-    std::cout << "Plots and Animations Time :: "
-        << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-        << " ms\n";
+    banner("DONE");
     return 0;
 }

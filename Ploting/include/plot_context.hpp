@@ -10,12 +10,13 @@
  *   - Zéro copie : les vecteurs sont construits une seule fois.
  */
 
+#include <algorithm>
 #include <mutex>
 #include <sstream>
 #include <string>
 #include <vector>
 
-#include "json_loader.hpp"  // inclut data_paths.hpp → Utils.h
+#include "json_loader.hpp"  // inclut data_paths.hpp -> Utils.h
 
 namespace influence_line {
 namespace plots {

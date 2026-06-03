@@ -1,8 +1,9 @@
 #include "UpdatePositions.h"
 
 #include <fstream>
-#include <sstream>
+#include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 
 // =============================================================================
@@ -246,29 +247,33 @@ void UpdatePositions::processCombined(const std::string& curve, bool critical)
 void UpdatePositions::processAll(bool critical)
 {
     const std::string scope = critical ? "Critical_Section" : "Global";
-    std::cout << "\n[" << scope << "] Traitement de " << CURVE_NAMES.size() << " courbes...\n";
+    std::cout << "\n----- Update Positions [" << scope << "]";
+    int written = static_cast<int>(scope.size()) + 26;
+    for (int i = written; i < 53; ++i) std::cout << '-';
+    std::cout << '\n';
+
+    auto run = [&](const char* loadKind,
+                   void (UpdatePositions::*fn)(const std::string&, bool),
+                   const std::string& curve, const std::string& display)
+    {
+        try {
+            (this->*fn)(curve, critical);
+            std::cout << "  [ OK  ]  " << std::left << std::setw(18) << loadKind
+                      << " | " << display << '\n';
+        }
+        catch (const std::exception& e) {
+            std::cerr << "  [ ERR ]  " << std::left << std::setw(18) << loadKind
+                      << " | " << display << " :: " << e.what() << '\n';
+        }
+    };
 
     for (size_t i = 0; i < CURVE_NAMES.size(); ++i) {
         const auto& curve   = CURVE_NAMES[i];
         const auto& display = CURVE_DISPLAY[i];
-
-        try   { processPoint(curve, critical);
-                std::cout << "  [OK] Point_Load        - " << display << "\n"; }
-        catch (const std::exception& e)
-              { std::cerr << "  [ERR] Point_Load        - " << display << " : " << e.what() << "\n"; }
-
-        try   { processDistributed(curve, critical);
-                std::cout << "  [OK] Distributed_Load  - " << display << "\n"; }
-        catch (const std::exception& e)
-              { std::cerr << "  [ERR] Distributed_Load  - " << display << " : " << e.what() << "\n"; }
-
-        try   { processCombined(curve, critical);
-                std::cout << "  [OK] Combined_Load     - " << display << "\n"; }
-        catch (const std::exception& e)
-              { std::cerr << "  [ERR] Combined_Load     - " << display << " : " << e.what() << "\n"; }
+        run("Point_Load",       &UpdatePositions::processPoint,       curve, display);
+        run("Distributed_Load", &UpdatePositions::processDistributed, curve, display);
+        run("Combined_Load",    &UpdatePositions::processCombined,    curve, display);
     }
-
-    std::cout << "[" << scope << "] Done.\n";
 }
 
 // =============================================================================

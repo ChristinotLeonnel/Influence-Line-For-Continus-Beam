@@ -18,6 +18,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <vector>
 #include <stdexcept>
 #include <string>
@@ -32,6 +33,11 @@ public:
         out_.open(filepath);
         if (!out_.is_open())
             throw std::runtime_error("JsonStreamWriter: cannot open " + filepath.string());
+
+        // 17 chiffres significatifs = round-trip IEEE-754 garanti.
+        // Indispensable pour les valeurs d'ingénierie où la précision
+        // par défaut du flux (6) donnerait des résultats faux.
+        out_ << std::setprecision(17);
         out_ << '[';
         first_span_ = true;
     }

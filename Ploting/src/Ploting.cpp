@@ -2,20 +2,37 @@
 
 /**
  * Ploting.cpp
- * Visual results generation pipeline (plots + animations).
+ * Pipeline de generation des plots et animations.
  *
- * Compiled as Ploting.lib — called from Aplication.cpp after structural
- * analysis, with configPath read from path.json.
+ * Compile en Ploting.lib - appele depuis Aplication.cpp apres l'analyse
+ * structurelle, avec configPath lu depuis path.json.
+ *
+ * Arborescence produite (relative a configPath) :
+ *   06_Plots/
+ *     ├── All/                     (tracage de toutes les travees)
+ *     ├── Maximum/                 (sections critiques)
+ *     └── Envelopes/
+ *         ├── Point_Load/
+ *         ├── Distributed_Load/
+ *         └── Combined_Load/
+ *   07_Animations/
+ *     ├── Results/
+ *     │   ├── GIF/
+ *     │   └── MP4/
+ *     └── Curvature/
+ *         ├── GIF/
+ *         └── MP4/
  */
 
 #include <filesystem>
 #include <future>
+#include <iomanip>
 #include <iostream>
 #include <mutex>
 #include <string>
 #include <vector>
 
-#include <opencv2/core/utils/logger.hpp>  // cv::utils::logging
+#include <opencv2/core/utils/logger.hpp>
 
 #include "animate_results.hpp"
 #include "plot_results.hpp"
@@ -27,25 +44,24 @@ namespace fs = std::filesystem;
 using namespace influence_line;
 
 // =============================================================================
-//  Internal helpers (local translation unit — not exposed in .h)
+//  Helpers internes (TU-locaux)
 // =============================================================================
-
 namespace {
 
-// Output directories — initialized from configPath on each run() call
+// Repertoires de sortie - initialises depuis configPath a chaque run()
 struct OutputDirs {
     fs::path plot;
-    fs::path gif;
-    fs::path mp4;
+    fs::path anim_gif;
+    fs::path anim_mp4;
     fs::path curvature_gif;
     fs::path curvature_mp4;
 
     explicit OutputDirs(const fs::path& base)
-        : plot         (base / "05_Output" / "Plots")
-        , gif          (base / "05_Output" / "Animation" / "Results" / "GIF")
-        , mp4          (base / "05_Output" / "Animation" / "Results" / "MP4")
-        , curvature_gif(base / "05_Output" / "Animation" / "Curvature" / "GIF")
-        , curvature_mp4(base / "05_Output" / "Animation" / "Curvature" / "MP4")
+        : plot         (base / "06_Plots")
+        , anim_gif     (base / "07_Animations" / "Results"   / "GIF")
+        , anim_mp4     (base / "07_Animations" / "Results"   / "MP4")
+        , curvature_gif(base / "07_Animations" / "Curvature" / "GIF")
+        , curvature_mp4(base / "07_Animations" / "Curvature" / "MP4")
     {}
 
     void create_all() const {
@@ -54,27 +70,38 @@ struct OutputDirs {
             plot / "Envelopes" / "Point_Load",
             plot / "Envelopes" / "Distributed_Load",
             plot / "Envelopes" / "Combined_Load",
-            gif, mp4, curvature_gif, curvature_mp4
-        }) fs::create_directories(dir);
+            anim_gif, anim_mp4, curvature_gif, curvature_mp4
+        })
+            fs::create_directories(dir);
     }
 };
 
-// ── Thread-safe logger ────────────────────────────────────────────────────────
+// ── Logger thread-safe avec format unifie ────────────────────────────────────
 std::mutex g_log_mutex;
 
-void log(const std::string& status, const std::string& name,
-         const std::string& err = "")
-{
+void log_ok(const std::string& name) {
     std::lock_guard<std::mutex> lk(g_log_mutex);
-    if (err.empty())
-        std::cout << "    " << status << "   " << name << "\n";
-    else
-        std::cout << "    ERR  " << name << " : " << err << "\n";
+    std::cout << "  [ OK  ]  " << name << '\n';
+}
+void log_err(const std::string& name, const std::string& reason) {
+    std::lock_guard<std::mutex> lk(g_log_mutex);
+    std::cout << "  [ ERR ]  " << name << " :: " << reason << '\n';
 }
 
-// ── Workers ───────────────────────────────────────────────────────────────────
+void phase_header(const std::string& title) {
+    std::cout << "\n----- " << title;
+    // pad la ligne a 53 caracteres avec des tirets
+    int written = static_cast<int>(title.size()) + 6;
+    for (int i = written; i < 53; ++i) std::cout << '-';
+    std::cout << '\n';
+}
+void phase_footer(const std::string& title) {
+    (void)title;
+    std::cout << "----- done ------------------------------------------\n";
+}
 
-std::pair<std::string,std::string>
+// ── Workers ──────────────────────────────────────────────────────────────────
+std::pair<std::string, std::string>
 worker_animation(const std::string& filename, const OutputDirs& dirs)
 {
     const std::string name = fs::path(filename).stem().string();
@@ -82,8 +109,8 @@ worker_animation(const std::string& filename, const OutputDirs& dirs)
         animations::AnimationOptions opts;
         opts.is_save      = true;
         opts.is_show      = false;
-        opts.save_dir_gif = dirs.gif;
-        opts.save_dir_mp4 = dirs.mp4;
+        opts.save_dir_gif = dirs.anim_gif;
+        opts.save_dir_mp4 = dirs.anim_mp4;
         animations::build_and_save_animation(filename, opts);
         return {name, ""};
     } catch (const std::exception& ex) {
@@ -91,7 +118,7 @@ worker_animation(const std::string& filename, const OutputDirs& dirs)
     }
 }
 
-std::pair<std::string,std::string>
+std::pair<std::string, std::string>
 worker_plot(const std::string& filename, const OutputDirs& dirs)
 {
     const std::string name = fs::path(filename).stem().string();
@@ -115,7 +142,7 @@ worker_plot(const std::string& filename, const OutputDirs& dirs)
     }
 }
 
-std::pair<std::string,std::string>
+std::pair<std::string, std::string>
 worker_curvature(const std::string& filename, const OutputDirs& dirs)
 {
     const std::string name = fs::path(filename).stem().string();
@@ -139,55 +166,58 @@ worker_curvature(const std::string& filename, const OutputDirs& dirs)
     }
 }
 
-// ── Generic parallel executor ─────────────────────────────────────────────
-template<typename Worker>
+// ── Executor parallele generique ─────────────────────────────────────────────
+template <typename Worker>
 void run_parallel(const std::string&              phase_name,
                   Worker&&                        worker,
                   const std::vector<std::string>& curves)
 {
-    std::cout << "=== " << phase_name << " ===\n";
+    phase_header(phase_name);
     ThreadPool pool(curves.size());
-    std::vector<std::future<std::pair<std::string,std::string>>> futures;
+    std::vector<std::future<std::pair<std::string, std::string>>> futures;
     futures.reserve(curves.size());
     for (const auto& c : curves)
         futures.push_back(pool.submit(worker, c));
     for (auto& fut : futures) {
         auto [name, err] = fut.get();
-        log(err.empty() ? "OK  " : "ERR", name, err);
+        if (err.empty()) log_ok(name);
+        else             log_err(name, err);
     }
-    std::cout << phase_name << " completed.\n\n";
+    phase_footer(phase_name);
 }
 
 } // anonymous namespace
 
 // =============================================================================
-//  Public API
+//  API publique
 // =============================================================================
-
 namespace plotting {
 
 void run(const std::string& configPath)
 {
-    // Suppress OpenCV INFO messages (plugin load attempts, backend discovery)
-    // Only warnings and errors will be shown.
+    // Suppression des messages OpenCV de niveau INFO
     cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_WARNING);
 
-    // Injects configPath as an internal environment variable
-    // → influence_line_dir() reads it as priority 1 in data_paths.hpp
+    // Injecte configPath dans la variable d'environnement interne.
+    // influence_line_dir() la lira en priorite 1 - voir data_paths.hpp.
 #ifdef _WIN32
     _putenv_s("MATRIX_ONE_INFLUENCE_LINE_DIR", configPath.c_str());
 #else
     setenv("MATRIX_ONE_INFLUENCE_LINE_DIR", configPath.c_str(), 1);
 #endif
 
-    // Clears the JSON cache (new session with new configPath)
+    // Vide le cache JSON (nouvelle session, nouveau configPath)
     io::JsonCache::instance().clear();
 
-    const fs::path base_path = fs::path(configPath);  // intermediate variable
-    const OutputDirs dirs{ base_path };                // braces → never ambiguous
+    const fs::path  base_path = fs::path(configPath);
+    const OutputDirs dirs{ base_path };
     dirs.create_all();
 
-    // No Python init needed — matplot++ + OpenCV are pure C++
+    // En-tete general
+    std::cout << "\n=====================================================\n";
+    std::cout << "  PLOTTING PIPELINE\n";
+    std::cout << "  root: " << base_path.string() << '\n';
+    std::cout << "=====================================================\n";
 
     const std::vector<std::string> curves = {
         "shear_force.json",
@@ -197,26 +227,31 @@ void run(const std::string& configPath)
     };
 
     run_parallel("Phase 1 : Structural Animations",
-        [&](const std::string& f){ return worker_animation(f, dirs); }, curves);
+        [&](const std::string& f) { return worker_animation(f, dirs); }, curves);
 
-    // Phase 2 runs sequentially — matplot++ uses gnuplot which is not
-    // thread-safe when multiple workers call fig->save() simultaneously.
-    std::cout << "=== Phase 2 : Static Plots ===\n";
+    // Phase 2 sequentielle - matplot++/gnuplot etait non thread-safe ; OpenCV
+    // l'est, mais on garde la sequentialite pour limiter la pression memoire
+    // pendant l'ecriture des PNG.
+    phase_header("Phase 2 : Static Plots");
     for (const auto& curve : curves) {
         auto [name, err] = worker_plot(curve, dirs);
-        log(err.empty() ? "OK  " : "ERR", name, err);
+        if (err.empty()) log_ok(name);
+        else             log_err(name, err);
     }
-    std::cout << "Phase 2 : Static Plots completed.\n\n";
+    phase_footer("Phase 2");
 
     run_parallel("Phase 3 : Curvature Animations",
-        [&](const std::string& f){ return worker_curvature(f, dirs); }, curves);
+        [&](const std::string& f) { return worker_curvature(f, dirs); }, curves);
 
-    // Phase 4 — Global envelope plots (influence line + load position marker)
-    // Runs after UpdatePositions so 04_Load_Envelopes/ is fully populated.
+    // Phase 4 - enveloppes globales (ligne d'influence + marqueur de position)
     const std::vector<std::string> curve_names = {
         "Shear Force", "Bending Moment", "Deflection", "Rotation"
     };
     envelopes::run_envelope_plots(base_path, dirs.plot, curves, curve_names);
+
+    std::cout << "\n=====================================================\n";
+    std::cout << "  PLOTTING PIPELINE - completed\n";
+    std::cout << "=====================================================\n\n";
 }
 
 } // namespace plotting
