@@ -16,8 +16,96 @@ formalisme des rapports d'ingénierie RDM6 / RDM Flexion (IUT Le Mans) :
 from __future__ import annotations
 
 import datetime
+import os
 from pathlib import Path
+import shutil
+import subprocess
+import tempfile
 from typing import Any, Callable, Optional
+
+
+def _find_chromium() -> str | None:
+    """Recherche un exécutable Chromium (Edge ou Chrome) sur le système."""
+    candidates = [
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        shutil.which("msedge"),
+        shutil.which("chrome"),
+        shutil.which("google-chrome"),
+        shutil.which("chromium"),
+    ]
+    for c in candidates:
+        if c and os.path.exists(c):
+            return c
+    return None
+
+
+def html_to_pdf(html_content: str, pdf_path: str | Path) -> Path:
+    """
+    Convertit un contenu HTML en fichier PDF prêt pour l'impression A4.
+    Utilise automatiquement le moteur headless Chromium (Edge ou Chrome) présent
+    sur le système, ou WeasyPrint / Playwright / wkhtmltopdf si disponibles.
+    """
+    pdf_dest = Path(pdf_path).resolve()
+    pdf_dest.parent.mkdir(parents=True, exist_ok=True)
+
+    # 1. Essai avec WeasyPrint si disponible
+    try:
+        import weasyprint
+        weasyprint.HTML(string=html_content).write_pdf(str(pdf_dest))
+        return pdf_dest
+    except ImportError:
+        pass
+
+    # 2. Moteur natif Windows / Chromium (Microsoft Edge ou Google Chrome)
+    browser_exe = _find_chromium()
+    if browser_exe:
+        temp_html_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w", encoding="utf-8") as f:
+                f.write(html_content)
+                temp_html_path = f.name
+
+            cmd = [
+                browser_exe,
+                "--headless",
+                "--disable-gpu",
+                "--no-pdf-header-footer",
+                f"--print-to-pdf={str(pdf_dest)}",
+                temp_html_path,
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if result.returncode == 0 and pdf_dest.exists() and pdf_dest.stat().st_size > 0:
+                return pdf_dest
+        except Exception:
+            pass
+        finally:
+            if temp_html_path and os.path.exists(temp_html_path):
+                try:
+                    os.remove(temp_html_path)
+                except OSError:
+                    pass
+
+    # 3. Essai avec pdfkit / wkhtmltopdf si disponible
+    try:
+        import pdfkit
+        pdfkit.from_string(html_content, str(pdf_dest))
+        return pdf_dest
+    except (ImportError, Exception):
+        pass
+
+    # 4. Si aucun convertisseur direct n'a pu créer le PDF, on écrit le fichier HTML
+    # avec instruction claire
+    fallback_html = pdf_dest.with_suffix(".html")
+    fallback_html.write_text(html_content, encoding="utf-8")
+    raise RuntimeError(
+        f"Impossible de convertir directement en PDF : aucun moteur Chromium (Edge/Chrome) "
+        f"ou WeasyPrint n'a pu être exécuté.\n"
+        f"Le rapport a été sauvegardé en HTML ici : {fallback_html}\n"
+        f"Vous pouvez l'ouvrir et l'imprimer en PDF (Ctrl+P -> Enregistrer en PDF)."
+    )
 
 
 def _generate_beam_svg(spans: list[float], node_lengths: list[float]) -> str:
@@ -762,5 +850,55 @@ def generate_calculation_note(
 """
     dest = Path(output_path)
     dest.parent.mkdir(parents=True, exist_ok=True)
+
+    # Si l'utilisateur demande un PDF (extension .pdf)
+    if dest.suffix.lower() == ".pdf":
+        html_to_pdf(html, dest)
+        return str(dest)
+
     dest.write_text(html, encoding="utf-8")
     return html
+
+
+def generate_calculation_pdf(
+    out: Any,
+    output_path: str | Path = "note_de_calcul_rdm6.pdf",
+    *,
+    project_title: str = "Étude de Flexion de Poutre Continue Hyperstatique",
+    project_ref: str = "RDM6-TSARALOHA-01",
+    engineer_name: str = "Ingénieur Structure",
+    company_name: str = "Département Génie Mécanique & Civil",
+    logo_svg: Optional[str] = None,
+    curve_plotter: Optional[Callable[[Any, str, int, int], str]] = None,
+) -> Path:
+    """
+    Génère la note de calcul directement au format PDF (mise en page RDM6 A4).
+
+    Parameters
+    ----------
+    out : Tsaraloha.LIPoutreContinue.Output
+        L'objet Output calculé avec ses charges.
+    output_path : str or Path
+        Chemin du fichier PDF de sortie (ex: "note_de_calcul.pdf").
+
+    Returns
+    -------
+    Path
+        Le chemin absolu vers le fichier PDF généré.
+    """
+    pdf_dest = Path(output_path)
+    if pdf_dest.suffix.lower() != ".pdf":
+        pdf_dest = pdf_dest.with_suffix(".pdf")
+
+    generate_calculation_note(
+        out,
+        output_path=pdf_dest,
+        project_title=project_title,
+        project_ref=project_ref,
+        engineer_name=engineer_name,
+        company_name=company_name,
+        logo_svg=logo_svg,
+        curve_plotter=curve_plotter,
+    )
+    return pdf_dest
+

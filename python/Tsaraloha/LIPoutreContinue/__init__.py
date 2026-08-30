@@ -569,8 +569,7 @@ class Output(_RawOutput):
         curve_plotter=None,
     ) -> str:
         """
-        Génère une note de calcul détaillée, professionnelle et imprimable
-        au format HTML / PDF.
+        Génère une note de calcul détaillée au format HTML ou PDF (si extension .pdf).
         """
         from .report import generate_calculation_note as _gen
         return _gen(
@@ -584,8 +583,34 @@ class Output(_RawOutput):
             curve_plotter=curve_plotter,
         )
 
+    def generate_calculation_pdf(
+        self,
+        output_path: str = "note_de_calcul.pdf",
+        *,
+        project_title: str = "Étude de Poutre Continue Hyperstatique",
+        project_ref: str = "DOC-NC-001",
+        engineer_name: str = "Ingénieur Structure",
+        company_name: str = "Bureau d'Études Structures",
+        logo_svg: str | None = None,
+        curve_plotter=None,
+    ):
+        """
+        Génère directement la note de calcul au format PDF (mise en page A4 RDM6).
+        """
+        from .report import generate_calculation_pdf as _gen_pdf
+        return _gen_pdf(
+            self,
+            output_path=output_path,
+            project_title=project_title,
+            project_ref=project_ref,
+            engineer_name=engineer_name,
+            company_name=company_name,
+            logo_svg=logo_svg,
+            curve_plotter=curve_plotter,
+        )
 
-from .report import generate_calculation_note
+
+from .report import generate_calculation_note, generate_calculation_pdf
 
 # ── Autres structures — ré-exportées telles quelles (API déjà simple,
 #    peu de manières incorrectes de les utiliser) ─────────────────────────
@@ -621,7 +646,9 @@ __all__ = [
     "LoadDelivery",
     "CriticalSectionResult",
     "generate_calculation_note",
+    "generate_calculation_pdf",
 ]
+
 
 
 
