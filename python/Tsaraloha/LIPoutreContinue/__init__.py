@@ -481,6 +481,36 @@ class Output(_RawOutput):
                 ),
             ) from exc
 
+    @property
+    def structural_model(self) -> dict:
+        """
+        Retourne la description complète du modèle de structure sous forme de dictionnaire Python
+        (identique au fichier 01_Input/structural_model.json).
+        """
+        node_lengths = []
+        cumul = 0.0
+        for span in self.L_spans:
+            node_lengths.append(cumul)
+            cumul += span
+        node_lengths.append(cumul)
+
+        model = {
+            "spans": list(self.L_spans),
+            "young_modulus": list(self.E_spans),
+            "inertia": list(self.I_spans),
+            "step": float(self.steps),
+            "node_lengths": list(self.node_lengths) if len(self.node_lengths) > 0 else node_lengths,
+            "n_spans": int(self.number_of_spans),
+        }
+        if len(self.X) > 0:
+            model["n_total_nodes"] = len(self.X)
+            model["nodes"] = list(self.X)
+        return model
+
+    def to_dict(self) -> dict:
+        """Alias pour structural_model."""
+        return self.structural_model
+
 
 # ── Autres structures — ré-exportées telles quelles (API déjà simple,
 #    peu de manières incorrectes de les utiliser) ─────────────────────────
