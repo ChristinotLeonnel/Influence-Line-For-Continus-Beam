@@ -325,6 +325,36 @@ class Hyperstatique(_RawHyperstatique):
         steps = _v.check_positive_number("steps", steps)
         super().__init__(E, I, L, steps)
 
+    @property
+    def structural_model(self) -> dict:
+        """
+        Retourne la description complète du modèle de structure sous forme de dictionnaire Python
+        (spans, young_modulus, inertia, step, node_lengths, n_spans, n_total_nodes, nodes).
+        """
+        node_lengths = []
+        cumul = 0.0
+        for span in self.L_spans:
+            node_lengths.append(cumul)
+            cumul += span
+        node_lengths.append(cumul)
+
+        nodes = self.points_x_coordinates(self.span_node_positions)
+
+        return {
+            "spans": list(self.L_spans),
+            "young_modulus": list(self.E_spans),
+            "inertia": list(self.I_spans),
+            "step": float(self.steps),
+            "node_lengths": node_lengths,
+            "n_spans": int(self.number_of_spans),
+            "n_total_nodes": len(nodes),
+            "nodes": list(nodes),
+        }
+
+    def to_dict(self) -> dict:
+        """Alias pour structural_model."""
+        return self.structural_model
+
 
 class Output(_RawOutput):
     """
