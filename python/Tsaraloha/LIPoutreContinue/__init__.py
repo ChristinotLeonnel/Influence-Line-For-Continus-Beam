@@ -471,6 +471,8 @@ class Output(_RawOutput):
                     "Exemple attendu : Load(intensity=[12.0], "
                     'length=[0.0, 4.0], name="UDL")'
                 )
+        self._user_point_loads = point_loads
+        self._user_distrib_loads = distrib_loads
         return super().set_loads(point_loads, distrib_loads)
 
     def export_load_envelopes(self):
@@ -514,8 +516,8 @@ class Output(_RawOutput):
     @property
     def structural_model(self) -> dict:
         """
-        Retourne la description complète du modèle de structure sous forme de dictionnaire Python
-        (identique au fichier 01_Input/structural_model.json).
+        Retourne la description complète du modèle de structure et de ses charges
+        sous forme de dictionnaire Python.
         """
         node_lengths = []
         cumul = 0.0
@@ -535,11 +537,32 @@ class Output(_RawOutput):
         if len(self.X) > 0:
             model["n_total_nodes"] = len(self.X)
             model["nodes"] = list(self.X)
+
+        if hasattr(self, "_user_point_loads") and self._user_point_loads:
+            model["point_loads"] = [
+                l.to_dict() if hasattr(l, "to_dict") else {
+                    "intensity": list(l.intensity),
+                    "length": list(l.length),
+                    "name": l.name,
+                }
+                for l in self._user_point_loads
+            ]
+        if hasattr(self, "_user_distrib_loads") and self._user_distrib_loads:
+            model["distrib_loads"] = [
+                l.to_dict() if hasattr(l, "to_dict") else {
+                    "intensity": list(l.intensity),
+                    "length": list(l.length),
+                    "name": l.name,
+                }
+                for l in self._user_distrib_loads
+            ]
+
         return model
 
     def to_dict(self) -> dict:
         """Alias pour structural_model."""
         return self.structural_model
+
 
 
 # ── Autres structures — ré-exportées telles quelles (API déjà simple,
