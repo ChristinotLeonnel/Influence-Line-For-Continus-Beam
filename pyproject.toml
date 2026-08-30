@@ -1,0 +1,40 @@
+[build-system]
+requires = ["scikit-build-core>=0.9", "pybind11>=2.13"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "Tsaraloha"
+version = "1.0.0"
+description = "Tsaraloha : librairie chapeau regroupant plusieurs sous-librairies de calcul. Sous-librairie actuelle : LIPoutreContinue, analyse structurelle de poutres continues (lignes d'influence, enveloppes de charge, isostatique/hyperstatique)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Proprietary" }
+authors = [{ name = "Tsaraloha" }]
+keywords = [
+    "structural-analysis",
+    "beam",
+    "influence-line",
+    "civil-engineering",
+    "finite-element",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: C++",
+    "Topic :: Scientific/Engineering",
+    "Intended Audience :: Science/Research",
+]
+
+[tool.scikit-build]
+# Le code source C++ vit à la racine (CMakeLists.txt), organisé par
+# sous-librairie (ex. LIPoutreContinue/include, LIPoutreContinue/src,
+# LIPoutreContinue/bindings). Le paquet Python pur (__init__.py, .pyi,
+# py.typed) vit dans python/Tsaraloha/ (racine du namespace) et
+# python/Tsaraloha/LIPoutreContinue/ (sous-librairie), et est copié à côté
+# de l'extension compilée par le CMakeLists.txt lui-même (voir la section
+# "Module Python" dans CMakeLists.txt).
+wheel.packages = ["python/Tsaraloha"]
+cmake.build-type = "Release"
+
+[tool.scikit-build.cmake.define]
+TSARALOHA_BUILD_PYTHON = "ON"
+TSARALOHA_BUILD_EXAMPLES = "OFF"

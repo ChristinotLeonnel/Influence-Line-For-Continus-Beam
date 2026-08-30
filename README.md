@@ -1,422 +1,300 @@
-<p align="center">
-  <img src="logo.svg" alt="Influence Line Logo" width="400"/>
-</p>
+# Tsaraloha
 
-# Structural Analysis — Continuous Beam (Influence Lines)
+Librairie chapeau destinée à regrouper plusieurs sous-librairies de calcul.
+Chaque sous-librairie vit dans son propre sous-paquet (`Tsaraloha.<NomSousLib>`).
 
-A C++ application for the **hyperstatique (statically indeterminate) analysis of continuous beams**. It computes influence lines for bending moment, shear force, deflection, and rotation, then determines optimal load placements, exports all results as JSON, and generates plots and animations.
+> 📖 **Documentation complète & Guide de référence** : Consultez [DOCUMENTATION.md](file:///e:/Book/Dev/Ligne%20Influence/DOCUMENTATION.md) pour la théorie, les équations, les formats JSON et l'ensemble de l'API C++ / Python.
 
----
+## Sous-librairies
 
-## Features
+### LIPoutreContinue
 
-- Three-moment equation solver for continuous multi-span beams
-- Influence line computation for: bending moment, shear force, deflection, rotation, and support moments
-- Optimal load positioning for point loads and distributed (rectangular) loads
-- Combined load envelopes (point + distributed simultaneously)
-- Critical section analysis (worst-case span and section)
-- Fully parallel pipeline using `std::async`
-- All output in JSON — no external plotting dependencies for the analysis
-- Static PNG plots and MP4 + GIF animations via OpenCV (pure C++)
-- Global envelope plots: influence line + optimal load position markers
+Calcul de poutres continues — isostatique / hyperstatique, lignes
+d'influence, enveloppes de charge (ponctuelle, répartie, combinée),
+export JSON structuré.
 
----
+Deux façons de l'utiliser :
 
-## Project Structure
+- **En C++** : librairie coeur `LIPoutreContinue_core`, un seul header à
+  inclure (`#include <LIPoutreContinue/StructuralAnalysis.h>`).
+- **En Python** : sous-paquet `Tsaraloha.LIPoutreContinue`, structuré
+  comme numpy — l'API publique pure-Python
+  (`Tsaraloha/LIPoutreContinue/__init__.py`) enveloppe une extension
+  compilée privée (`Tsaraloha.LIPoutreContinue._LIPoutreContinue`), jamais
+  importée directement.
 
-```
-.
-├── CMakeLists.txt
-├── InfluenceLine.props              # Visual Studio property sheet (vcpkg paths)
-├── path.json                        # Auto-generated on first run
-├── doc/
-│   ├── Architecture_Optimisation.docx
-│   └── Steps.txt
-├── include/
-│   ├── Hyperstatique.h              # Continuous beam solver
-│   ├── Input.h                      # Configuration parser
-│   ├── Isostatique.h                # Single-span influence lines
-│   ├── JsonStreamWriter.h           # Streaming JSON writer (low RAM)
-│   ├── Loading.h                    # Load positioning & envelopes
-│   ├── Output.h                     # Full pipeline orchestrator
-│   ├── ProjectPaths.h               # Centralised path registry
-│   ├── SpanResult.h                 # Per-span result struct
-│   ├── UpdatePositions.h            # Rewrites input with optimal positions
-│   ├── Utils.h                      # Shared types, math, JSON helpers
-│   ├── data_paths.hpp               # Environment-based path resolution
-│   ├── json_loader.hpp              # Thread-safe JSON cache
-│   ├── plot_config.hpp              # Visual config struct (plot_config.json)
-│   ├── plot_context.hpp             # PlotContext singleton (nodes, x coords)
-│   ├── plot_results.hpp             # Static PNG renderer (pure OpenCV)
-│   ├── animate_results.hpp          # MP4 + GIF animation renderer
-│   ├── envelope_plots.hpp           # Global envelope plots (Phase 4)
-│   ├── render_common.hpp            # Shared OpenCV drawing engine
-│   ├── gnuplot_init.hpp             # Gnuplot PATH setup (static plots only)
-│   ├── gif_writer.hpp               # Animated GIF wrapper (gif.h)
-│   ├── gif.h                        # gif.h — download separately (see below)
-│   ├── thread_pool.hpp              # C++17 thread pool
-│   └── nlohmann/
-│       ├── json.hpp                 # nlohmann/json v3.11.3 (bundled)
-│       └── json_fwd.hpp
-└── src/
-    ├── Aplication.cpp               # Entry point (main)
-    ├── Hyperstatique.cpp
-    ├── Input.cpp
-    ├── Isostatique.cpp
-    ├── Loading.cpp
-    ├── Output.cpp
-    ├── Ploting.cpp                  # Plotting pipeline (compiled as Ploting.lib)
-    └── UpdatePositions.cpp
+## Installation (Python)
+
+```bash
+pip install .
 ```
 
----
+`pip` compile automatiquement l'extension C++ (via
+[scikit-build-core](https://scikit-build-core.readthedocs.io) + CMake +
+pybind11) — aucune étape manuelle requise.
 
-## Output Directory Layout
+## Usage rapide (Python)
 
-All results are written under a configurable root (default: `~/Documents/Matrix One/Influence Line/`):
+```python
+import Tsaraloha.LIPoutreContinue as lipc
 
-```
-<root>/
-├── 01_Input/
-│   └── structural_model.json
-├── 02_Influence_Lines/
-│   ├── bending_moment.json          # [span][section][alpha]
-│   ├── shear_force.json
-│   ├── deflection.json
-│   ├── rotation.json
-│   ├── support_moment.json
-│   ├── abscissa.json
-│   ├── shear_abscissa.json
-│   └── node_lengths.json
-├── 03_Critical_Values/
-│   ├── bending_moment.json          # { span, section, alpha, value }
-│   ├── shear_force.json
-│   ├── deflection.json
-│   ├── rotation.json
-│   └── support_moment.json
-├── 04_Load_Envelopes/
-│   ├── Global/
-│   │   ├── Point_Load/
-│   │   ├── Distributed_Load/
-│   │   └── Combined_Load/
-│   └── Critical_Section/
-│       ├── Point_Load/
-│       ├── Distributed_Load/
-│       └── Combined_Load/
-├── 05_Load_Positioning/
-│   ├── Global/                      # input config rewritten with optimal positions (.txt)
-│   └── Critical_Section/
-└── 05_Output/                       # ← generated by Ploting.lib
-    ├── Plots/
-    │   ├── Maximum/                 # one PNG per curve (critical section)
-    │   ├── All/                     # one PNG per curve (all spans)
-    │   └── Envelopes/
-    │       ├── Point_Load/          # influence line + load position marker
-    │       ├── Distributed_Load/
-    │       └── Combined_Load/
-    └── Animation/
-        ├── Results/
-        │   ├── GIF/                 # animated GIF per curve
-        │   └── MP4/                 # H.264 MP4 per curve
-        └── Curvature/
-            ├── GIF/
-            └── MP4/
+# Poutre continue à 2 travées de 10 m, E=210 GPa, I=8e-4 m^4, pas de 1 m
+out = lipc.Output(E=[210e9, 210e9], I=[8e-4, 8e-4], L=[10, 10], steps=1.0)
+
+# Étape 1 : calcul en mémoire uniquement — rien n'est écrit sur disque
+out.compute()
+print(out.BM, out.SF, out.Def, out.Rot)      # lignes d'influence
+print(out.bending_moment_max_positions)       # position/valeur du max
+
+# Étape 2 (optionnelle) : enveloppes de charge — nécessite set_loads()
+out.set_loads(
+    point_loads=[lipc.Load(intensity=[50.0], length=[0.0], name="Camion")],
+    distrib_loads=[lipc.Load(intensity=[12.0], length=[0.0, 4.0], name="UDL")],
+)
+
+
+# Étape 3 (optionnelle) : export JSON structuré sur disque
+out.paths  # lipc.ProjectPaths — chemins résolus (01_Input/ ... 05_Load_Positioning/)
+out.export_all()
 ```
 
----
+Rien n'est automatique : `compute()` et les `export_*()` sont toujours des
+appels explicites, jamais déclenchés par le constructeur.
 
-## Dependencies
+## Structure des données d'entrée (Inputs)
 
-### Analysis core (no installation required)
+### 1. Géométrie et matériaux de la structure
 
-| Dependency | Version | How |
-|---|---|---|
-| [nlohmann/json](https://github.com/nlohmann/json) | 3.11.3 | Bundled — `include/nlohmann/json.hpp` |
-| C++ standard library (`<future>`, `<filesystem>`) | C++20 | Compiler built-in |
+La géométrie de la poutre continue et ses propriétés de section sont définies par les paramètres `E`, `I`, `L` et `steps` :
 
-### Plotting & animation (must be installed)
+| Paramètre | Type Python | Type C++ | Unité | Description | Contraintes |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`E`** | `list[float]` (ou `float`) | `std::vector<double>` (ou `double`) | $\text{Pa}$ ($\text{N/m}^2$) | Module d'élasticité (Young) de chaque travée | $E_i > 0$, même taille que `I` et `L` |
+| **`I`** | `list[float]` (ou `float`) | `std::vector<double>` (ou `double`) | $\text{m}^4$ | Moment quadratique d'inertie de chaque travée | $I_i > 0$, même taille que `E` et `L` |
+| **`L`** | `list[float]` (ou `float`) | `std::vector<double>` (ou `double`) | $\text{m}$ | Longueur de chaque travée | $L_i > 0$, même taille que `E` et `I` |
+| **`steps`** | `float` | `double` | $\text{m}$ | Pas de discrétisation / maillage le long de la poutre | $\text{steps} > 0$ |
+| **`root`** *(opt.)* | `str` / `Path` | `std::string` / `path` | — | Répertoire de destination pour les exports JSON | Optionnel (`""` par défaut) |
 
-| Dependency | Version | Purpose |
-|---|---|---|
-| [OpenCV](https://opencv.org/) | 4.12.0 | PNG rendering, MP4 encoding, GIF frames |
-| [matplot++](https://github.com/alandefreitas/matplotplusplus) | 1.2.1 | Static plots (gnuplot backend) |
-| [gnuplot](http://www.gnuplot.info/) | 6.0+ | Required by matplot++ for static plots |
-| [gif.h](https://github.com/charlietangora/gif-h) | latest | Header-only GIF encoder — download manually |
+> **Règle de dimensionnement** : Pour une poutre continue à $N$ travées avec `Output` ou `Hyperstatique`, les listes `E`, `I` et `L` doivent impérativement comporter exactement $N$ éléments (`len(E) == len(I) == len(L) == N`). Pour une poutre simple à une seule travée avec `Isostatique`, `E`, `I` et `L` sont de simples scalaires (`float`).
 
----
-
-## Installation Guide (Windows — MSVC x64)
-
-### Step 1 — Install Visual Studio 2022
-
-Download from https://visualstudio.microsoft.com/  
-During setup, select the **"Desktop development with C++"** workload.
-
----
-
-### Step 2 — Install vcpkg
-
-Open PowerShell and run:
-
-```powershell
-cd C:\
-git clone https://github.com/microsoft/vcpkg.git
-cd vcpkg
-.\bootstrap-vcpkg.bat
-.\vcpkg.exe integrate install
+```python
+# Exemple pour une poutre à 3 travées (12 m, 16 m, 12 m)
+E = [210e9, 210e9, 210e9]  # 210 GPa par travée
+I = [8.5e-4, 1.2e-3, 8.5e-4]  # Inerties variables en m^4
+L = [12.0, 16.0, 12.0]  # Longueurs en mètres
+steps = 0.5  # Échantillonnage tous les 50 cm
 ```
 
-`vcpkg integrate install` makes Visual Studio automatically find all vcpkg packages — no manual include path setup needed.
+### 2. Définition des charges (`Load`)
+
+La classe `Load` (ou `struct load` en C++) décrit une charge mobile — soit **ponctuelle** (essieu unique ou convoi d'essieux), soit **répartie** (uniforme ou plurielle) — destinée à `Output.set_loads()`.
+
+```python
+lipc.Load(intensity=[...], length=[...], name="NomDeLaCharge")
+```
+
+#### Paramètres du constructeur
+
+- **`intensity`** (`list[float]`) :
+  - **Charge ponctuelle** : force de chaque essieu $[\text{kN}]$. `len(intensity)` = nombre d'essieux du convoi.
+  - **Charge répartie** : intensité de chaque tronçon $[\text{kN/m}]$. `len(intensity)` = nombre de tronçons.
+- **`length`** (`list[float]`) :
+  - **Charge ponctuelle** : distances entre essieux consécutifs $[\text{m}]$. `len(length) == len(intensity)` (la dernière valeur n'est pas utilisée par le moteur).
+  - **Charge répartie** : `[PositionDepart, L_q1, L_q2, ..., L_qn]` $[\text{m}]$. `len(length) == len(intensity) + 1` (`PositionDepart = 0` si la charge débute au début de la travée).
+- **`name`** (`str`, optionnel) : Étiquette libre affichée dans les exports JSON (ex. `"Essieu"`, `"Convoi BC"`, `"UDL"`).
 
 ---
 
-### Step 3 — Install OpenCV and matplot++
+#### Format des Charges Ponctuelles
 
-```powershell
-cd C:\vcpkg
-.\vcpkg.exe install opencv4:x64-windows
-.\vcpkg.exe install matplotplusplus:x64-windows
-```
+| Type de charge | `intensity` | `length` |
+| :--- | :--- | :--- |
+| **Essieu unique** | `[P]` | `[xP]` |
+| **2 essieux ($P$, $Q$)** | `[P, Q]` | `[xP, xQ]` |
+| **3 essieux ($P$, $Q$, $R$)** | `[P, Q, R]` | `[xP, xQ, xR]` |
 
-> **Note:** This downloads and compiles both libraries. Expect 20–40 minutes total.
+- `xP` : distance entre le début de travée et le 1er essieu (offset initial)
+- `xQ` : distance entre le 1er et le 2ème essieu
+- `xR` : distance entre le 2ème et le 3ème essieu *(la dernière valeur de `length` n'est pas utilisée par le moteur)*
 
-Verify after install:
+```python
+# ── Essieu unique 50 kN ─────────────────────────────────────────
+essieu = lipc.Load(intensity=[50.0], length=[0.0], name="Essieu")
 
-```powershell
-# OpenCV headers — vcpkg puts them one level deeper than expected:
-ls C:\vcpkg\installed\x64-windows\include\opencv4\opencv2\opencv.hpp
-
-# matplot++ headers:
-ls C:\vcpkg\installed\x64-windows\include\matplot\matplot.h
+# ── Convoi 6 essieux (tandem + tandem) ──────────────────────────
+convoi_bc = lipc.Load(
+    intensity=[6.0, 12.0, 12.0, 6.0, 12.0, 12.0],  # kN par essieu
+    length=[2.25, 4.5, 1.5, 5.0, 4.5, 1.5],  # distances [m]
+    name="Convoi BC",
+)
 ```
 
 ---
 
-### Step 4 — Install gnuplot
+#### Format des Charges Réparties
 
-```powershell
-winget install gnuplot.gnuplot
-```
+| Type de charge | `intensity` | `length` |
+| :--- | :--- | :--- |
+| **Uniforme simple** | `[q]` | `[depart, L_q]` |
+| **Uniforme plurielle** | `[q1, q2, ..., qn]` | `[depart, L_q1, L_q2, ..., L_qn]` |
 
-Or download the installer from https://sourceforge.net/projects/gnuplot/  
-Default install path: `C:\Program Files\gnuplot\bin\gnuplot.exe`
+- `depart` : position du début de la charge depuis l'appui gauche $[\text{m}]$ (`= 0` si la charge commence dès l'appui)
+- `L_qi` : longueur du $i$-ème tronçon de charge $[\text{m}]$
 
-Verify:
+```python
+# ── Charge uniforme 12 kN/m sur 4 m, depuis le début ───────────
+udl = lipc.Load(intensity=[12.0], length=[0.0, 4.0], name="UDL")
 
-```powershell
-gnuplot --version
-# Expected: gnuplot 6.0 patchlevel 4
+# ── Charge plurielle : 45 kN/m sur 3 m, puis 10 sur 5 m, puis 25 sur 2 m
+udl_plurielle = lipc.Load(
+    intensity=[45.0, 10.0, 25.0],
+    length=[0.0, 3.0, 5.0, 2.0],
+    name="UDL2",
+)
 ```
 
 ---
 
-### Step 5 — Download gif.h
+### 3. Application des charges (`set_loads`)
 
-`gif.h` is a single public-domain header — download it manually:
+Les charges sont passées au modèle via la méthode `set_loads(point_loads, distrib_loads)` :
 
-```powershell
-Invoke-WebRequest `
-  -Uri "https://raw.githubusercontent.com/charlietangora/gif-h/master/gif.h" `
-  -OutFile "D:\path\to\your\project\include\gif.h"
+```python
+out.set_loads(
+    point_loads=[essieu, convoi_bc],  # Liste de Load ponctuels / convois
+    distrib_loads=[udl, udl_plurielle],  # Liste de Load réparties
+)
 ```
 
-Replace `D:\path\to\your\project\` with your actual project root.
 
----
 
-### Step 6 — Configure Visual Studio
+### Plus d'exemples (Python)
 
-The project includes `InfluenceLine.props` which configures all include paths, library paths, and DLL post-build copy automatically.
+Charge ponctuelle seule :
 
-1. Open your solution in Visual Studio
-2. **View → Property Manager**
-3. Right-click **Ploting** → *Add Existing Property Sheet* → select `InfluenceLine.props`
-4. Repeat for **Aplication**
-5. **Build → Rebuild Solution**
-
-> If vcpkg `integrate install` worked correctly in Step 2, the props file may not be strictly necessary — Visual Studio will find all packages automatically.
-
-**Verify DLL copy after build:**
-
-```powershell
-ls "D:\path\to\project\x64\Debug\*.dll" | Select-Object Name
+```python
+out.set_loads(
+    point_loads=[lipc.Load(intensity=[80.0], length=[0.0], name="Essieu")],
+    distrib_loads=[],
+)
+out.export_load_envelopes()
 ```
 
-You should see 29 DLLs including `opencv_core4.dll`, `opencv_imgproc4.dll`, etc.
+Charge répartie seule (ex. poids propre) :
 
----
+```python
+udl = lipc.Load(intensity=[12.0], length=[0.0, 4.0], name="Poids propre")
+out.set_loads(point_loads=[], distrib_loads=[udl])
+out.export_load_envelopes()
+```
 
-### Step 7 — Suppress OpenCV INFO logs (optional)
+`Isostatique` seul, indépendamment de `Output` (une seule travée) :
 
-OpenCV prints INFO messages at startup about optional plugins (TBB, FFMPEG) that are not installed. These are harmless. To hide them, the code already calls:
+```python
+from Tsaraloha.LIPoutreContinue import Isostatique
+
+travee = Isostatique(E=210e9, I=8e-4, L=10.0, steps=1.0)
+print(travee.bending_moment())
+```
+
+Recharger des positions de charge déjà exportées :
+
+```python
+up = lipc.UpdatePositions(root="/chemin/de/sortie", input_lines=["..."])
+up.run()  # compute() + write_all()
+```
+
+### Gestion des erreurs
+
+L'API Python (`Output`, `Hyperstatique`, `Isostatique`, `Load`) valide ses
+arguments *avant* d'appeler l'extension compilée, sur le modèle des
+messages d'erreur de numpy : chaque erreur dit ce qui ne va pas, avec les
+valeurs concrètes fournies, et un exemple d'appel correct.
+
+```python
+>>> lipc.Output(E=[210e9, 210e9], I=[8e-4], L=[10, 10], steps=1.0)
+ValueError: E, I, L doivent décrire le même nombre de travées (même
+longueur) ; reçu len(E)=2, len(I)=1, len(L)=2.
+
+>>> lipc.Isostatique(E=210e9, I=8e-4, L=-10.0, steps=1.0)
+ValueError: 'L' doit être strictement positif, reçu -10.0.
+
+>>> out.export_load_envelopes()   # sans avoir appelé set_loads() avant
+RuntimeError: Output::exportLoadEnvelopes: aucune charge fournie —
+appelez setLoads(point_loads, distrib_loads) avant [...]
+
+  Levée par : Output.export_load_envelopes()
+  Exemple minimal :
+      out.set_loads(
+          point_loads=[Load(intensity=[50.0], length=[0.0], name="Camion")],
+          distrib_loads=[],
+      )
+      out.export_load_envelopes()
+```
+
+Une faute de frappe sur un nom exposé suggère aussi la bonne orthographe
+(même logique que `numpy` depuis sa version 1.25) :
+
+```python
+>>> lipc.Outut
+AttributeError: module 'Tsaraloha.LIPoutreContinue' has no attribute
+'Outut'. Did you mean: 'Output'?
+```
+
+Voir les docstrings de `Tsaraloha/LIPoutreContinue/__init__.py` (chaque
+classe a une section `Examples`/`Raises`, sur le modèle numpydoc) et
+`Tsaraloha/LIPoutreContinue/_validation.py` pour le détail des
+vérifications effectuées.
+
+## Usage rapide (C++)
 
 ```cpp
-cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_WARNING);
+#include <LIPoutreContinue/StructuralAnalysis.h>
+
+std::vector<double> E{210e9, 210e9}, I{8e-4, 8e-4}, L{10, 10};
+double steps = 1.0;
+
+Output out(E, I, L, steps, "/chemin/de/sortie");
+out.compute();                 // résultats en RAM, rien sur disque
+// ... utiliser out.BM, out.SF, out.Def, out.Rot, out.X, etc.
+out.exportAll();                // optionnel : écrit le JSON
 ```
 
-This is done automatically in `Ploting.cpp` — no action needed.
-
----
-
-## Building
-
-### With CMake (recommended)
+## Build depuis les sources
 
 ```bash
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
-cmake --build . --config Release
+cmake -B build
+cmake --build build --config Release -j
+# -> build/python/Tsaraloha/LIPoutreContinue/_LIPoutreContinue<...>.so (Linux/macOS) ou .pyd (Windows)
+PYTHONPATH=build/python python3 -c "import Tsaraloha.LIPoutreContinue as lipc; print(lipc.__version__)"
 ```
 
-### With MSVC (manual — analysis core only, no plotting)
+Options CMake :
 
-```bat
-cl /std:c++20 /O2 /EHsc /utf-8 ^
-   src\Aplication.cpp src\Input.cpp src\Isostatique.cpp ^
-   src\Hyperstatique.cpp src\Loading.cpp src\Output.cpp src\UpdatePositions.cpp ^
-   /I include ^
-   /Fe:InfluenceLineContinuousBeam.exe
-```
+| Option                       | Défaut | Description                              |
+|-------------------------------|--------|-------------------------------------------|
+| `TSARALOHA_BUILD_PYTHON`      | `ON`   | Construit le(s) module(s) Python pybind11  |
+| `TSARALOHA_BUILD_EXAMPLES`    | `OFF`  | Construit `examples/` (si présent)         |
 
-> To include the plotting pipeline, also compile `src\Ploting.cpp` and link against OpenCV and matplot++ libs. Use `InfluenceLine.props` for the correct lib names and paths.
-
----
-
-## Configuration File
-
-On first run, a template is generated at `<root>/structural model input.txt`. Units: **m**, **kN**, **kN/m**, **Pa**, **m⁴**.
+## Structure du dépôt
 
 ```
-# STRUCTURAL ANALYSIS CONFIGURATION FILE
-# Units: Length(m), Force(kN), Distributed(kN/m), E(Pa), I(m^4)
-
-Length: 20 25 20
-Steps: 1
-Young Modulus: 210e9 210e9 210e9
-Moment of Inertia: 1e-6 1e-6 1e-6
-
-# Point loads:        intensities /Point/ offsets :: name
-6 12 12 6 12 12 /Point/ 2.25 4.5 1.5 5 4.5 1.5 2.5 :: BC 1
-
-# Distributed loads:  intensities /Distributed/ offsets :: name
-45 /Distributed/ 0 3 :: UDL 1
-45 10 25 /Distributed/ 0 3 5 2 :: UDL 2
+Tsaraloha/
+├── CMakeLists.txt                     # build C++ + extension(s) Python
+├── pyproject.toml                     # pip install . (scikit-build-core)
+├── include/nlohmann/                  # tiers partagé entre sous-librairies
+├── LIPoutreContinue/                  # sous-librairie : LIPoutreContinue
+│   ├── include/LIPoutreContinue/      # headers publics de la lib C++
+│   ├── src/                           # implémentation C++
+│   └── bindings/bindings.cpp          # bindings pybind11 (extension privée _LIPoutreContinue)
+└── python/Tsaraloha/
+    ├── __init__.py                    # racine du namespace Tsaraloha
+    └── LIPoutreContinue/               # paquet Python public de la sous-lib
+        ├── __init__.py                # (__init__.py, .pyi, py.typed)
+        ├── __init__.pyi
+        └── py.typed
 ```
 
-**Point load syntax:** `intensity1 intensity2 ... /Point/ offset1 offset2 ... :: load name`  
-**Distributed load syntax:** `intensity1 intensity2 ... /Distributed/ initial_offset length1 length2 ... :: load name`
-
----
-
-## Visual Customisation
-
-All plot parameters are controlled by `plot_config.json` in the output root. The file is created automatically on first run with defaults. Edit it and re-run — no recompilation needed.
-
-```json
-{
-  "figure":     { "width": 1280, "height": 720 },
-  "curves": [
-    { "color": "#1E5FA8", "thickness": 2.5, "filled": false, "fill_alpha": 0.15 }
-  ],
-  "legend":     { "show": true, "position": "top-right", "font_scale": 0.40 },
-  "labels":     { "title_scale": 0.65, "axis_scale": 0.38, "xlabel": "Support distance (m)" },
-  "grid":       { "show": true, "major_color": "#D8D8D8", "background": "#FFFFFF" },
-  "nodes":      { "show": true, "color": "#CC2222", "radius": 5 },
-  "span_line":  { "show": true, "color": "#AAAAAA", "thickness": 1 },
-  "animation":  { "fps": 20, "show_cursor": true, "show_point": true }
-}
-```
-
----
-
-## Usage
-
-```bash
-./InfluenceLineContinuousBeam
-```
-
-On startup the program:
-1. Reads `structural model input.txt` (created automatically on first run)
-2. Runs the full structural analysis (~23 seconds for a 3-span beam at 1 m steps)
-3. Exports all JSON results to the output directories
-4. Rewrites the input file with optimal load positions in `05_Load_Positioning/`
-5. Generates static plots (PNG), animations (MP4 + GIF), and global envelope plots
-
----
-
-## Architecture
-
-```
-main()
- └── Configuration::loadFromFile()      # parse input
- └── Output::Output()
-      ├── Phase 1  — BM / SF / Def / Rot        [4 async tasks]
-      ├── Phase 2a — Critical values JSON        [5 async tasks]
-      ├── Phase 2b — Influence line JSON         [8 async tasks]
-      ├── Phase 3a — Global load envelopes       [4 async tasks]
-      └── Phase 3b — Critical section envelopes  [4 async tasks]
- └── UpdatePositions::run()             # rewrite input with optimal positions
- └── plotting::run()                    # Ploting.lib
-      ├── Phase 1 — Structural animations (MP4 + GIF)   [parallel, pure OpenCV]
-      ├── Phase 2 — Static plots (PNG)                  [sequential, matplot++]
-      ├── Phase 3 — Curvature animations (MP4 + GIF)    [parallel, pure OpenCV]
-      └── Phase 4 — Global envelope plots (PNG)         [sequential, pure OpenCV]
-```
-
-### Key Classes
-
-| Class | Role |
-|---|---|
-| `Isostatique` | Closed-form influence lines for a single simply-supported span |
-| `Hyperstatique` | Assembles all spans using the three-moment method; applies unit-load superposition |
-| `Loading` | Sweeps a load convoy across the influence line to find the worst position |
-| `Output` | Orchestrates the full pipeline and JSON export |
-| `UpdatePositions` | Post-processes the load envelope JSON to rewrite the input config |
-| `JsonStreamWriter` | Writes large 3D tensors to disk span-by-span to limit peak RAM |
-
-### Plotting modules
-
-| File | Role |
-|---|---|
-| `render_common.hpp` | Shared OpenCV drawing engine: curves, grid, axes, legend, nodes, max lines, peak annotation |
-| `plot_config.hpp` | Full visual config struct backed by `plot_config.json` |
-| `plot_results.hpp` | Static PNG renderer using `render_common` |
-| `animate_results.hpp` | MP4 + GIF renderer using `render_common` + gif.h |
-| `envelope_plots.hpp` | Global envelope plots: influence line + load position markers |
-| `gnuplot_init.hpp` | Prepends gnuplot bin to PATH before matplot++ is used |
-| `gif_writer.hpp` | Thin wrapper around gif.h for animated GIF output |
-
----
-
-## Troubleshooting
-
-| Error | Cause | Fix |
-|---|---|---|
-| `cannot open opencv2/opencv.hpp` | Include path missing `opencv4\` subfolder | Import `InfluenceLine.props` in Visual Studio Property Manager |
-| `opencv_world4120.lib not found` | vcpkg builds separate modules, not a world lib | Use `opencv_core4.lib`, `opencv_imgproc4.lib`, etc. — already in `.props` |
-| `popen() failed` | gnuplot not on PATH | Run `winget install gnuplot.gnuplot`, then rebuild |
-| `cannot open gif.h` | File not downloaded | Run the `Invoke-WebRequest` command in Step 5 above |
-| `VideoWriter: cannot open` | MSMF backend unavailable | Requires Windows 8+ — should work on all modern Windows |
-| `[INFO] ONETBB/TBB FAILED` | Optional parallel plugins not installed | Harmless — OpenCV falls back to built-in implementation |
-
----
-
-## License
-
-Copyright © Tsaraloh A. Christinot — All rights reserved.
-
-This software is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.  
-You may use, modify, and distribute this software under the terms of the AGPL-3.0. Any modified version made available over a network must also be released under the same license.
-
-See the full license text at: https://www.gnu.org/licenses/agpl-3.0.html
-
-`json.hpp` is distributed under the MIT License — © 2013–2023 Niels Lohmann.  
-`gif.h` is distributed under the MIT License — © Charlie Tangora.
-
----
-
-## Contact
-
-**Tsaraloh A. Christinot**  
-✉️ tsaralohachristinot@gmail.com  
-📞 +261 34 30 524 02
+D'autres sous-librairies pourront être ajoutées plus tard en suivant le
+même schéma : un dossier `<NomSousLib>/` à la racine + un sous-paquet
+`python/Tsaraloha/<NomSousLib>/`.
