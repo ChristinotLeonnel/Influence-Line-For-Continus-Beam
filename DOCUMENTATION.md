@@ -373,6 +373,26 @@ ProjectPaths(root)
 
 Le module `Tsaraloha.LIPoutreContinue.plot` fournit un ensemble de fonctions de haut niveau basées sur **Matplotlib** pour tracer des graphiques de qualité professionnelle, avec un thème sombre élégant et des rendus précis des charges.
 
+#### Importation et Accès au Module
+
+Par conception, pour éviter de charger inutilement de grosses dépendances graphiques comme `matplotlib` lors de simples calculs en tâche de fond ou d'exports JSON purs, **les fonctions de visualisation ne sont pas importées par défaut** dans le namespace principal de la librairie (`Tsaraloha.LIPoutreContinue`).
+
+Pour y accéder, vous devez importer explicitement le sous-module de l'une des façons suivantes :
+
+```python
+# Option 1 (Recommandée) : Import direct des fonctions cibles
+from Tsaraloha.LIPoutreContinue.plot import plot_output_full, plot_load_summary
+
+# Option 2 : Import du module de tracé sous un alias
+import Tsaraloha.LIPoutreContinue.plot as liplot
+
+# Option 3 : Import classique de la librairie principale, puis import manuel du sous-module
+import Tsaraloha.LIPoutreContinue as lipc
+import Tsaraloha.LIPoutreContinue.plot as liplot
+```
+
+Une fois l'import réalisé, toutes les fonctions présentées ci-dessous deviennent accessibles dans votre script.
+
 #### Fonctions de Visualisation Disponibles
 
 | Fonction | Signature | Description |
