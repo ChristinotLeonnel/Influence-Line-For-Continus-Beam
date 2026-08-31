@@ -1082,12 +1082,19 @@ def plot_output_full(
     ax3 = fig.add_subplot(gs[2], sharex=ax1)
     _style_axes(ax3, ylabel="V [kN]",
                 title="L.I. Effort tranchant — mi-travée")
+    SF_absc = getattr(out, "shear_force_all_abscissa", None)
     for i, sf_span in enumerate(SF):
         mid = len(sf_span) // 2
         c   = _PALETTE[i % len(_PALETTE)]
-        ax3.plot(X_arr, sf_span[mid], color=c, linewidth=_LINE_WIDTH,
+        if SF_absc and i < len(SF_absc) and mid < len(SF_absc[i]):
+            x_sf = np.asarray(SF_absc[i][mid], dtype=float)
+        elif len(sf_span[mid]) == len(X_arr):
+            x_sf = X_arr
+        else:
+            x_sf = np.linspace(X_arr[0], X_arr[-1], len(sf_span[mid]))
+        ax3.plot(x_sf, sf_span[mid], color=c, linewidth=_LINE_WIDTH,
                  label=f"Travée {i}")
-        _fill_curve(ax3, X_arr, sf_span[mid], c)
+        _fill_curve(ax3, x_sf, sf_span[mid], c)
     _add_span_boundaries(ax3, spans, 0, 0)
     ax3.legend(fontsize=7, facecolor="#111118", labelcolor="#CCCCCC",
                framealpha=0.7)
