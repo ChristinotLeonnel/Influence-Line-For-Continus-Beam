@@ -40,121 +40,24 @@
 #include "LIPoutreContinue/loading/Input.h"
 #include "LIPoutreContinue/loading/Loading.h"
 
+#include "DictConverter.h"
+
 namespace py = pybind11;
 
 // =============================================================================
-//  Conversion load_delivery / LoadEnvelope → dict Python
+//  Conversion struct C++ → dict Python
 //
-//  Objectif : les données de chargement (enveloppes, section critique, ...)
-//  doivent être directement manipulables côté Python — indexables comme un
-//  dict, sérialisables en JSON (json.dumps), sans passer par un objet C++
-//  opaque ni appeler explicitement une méthode de conversion.
+//  Objectif : TOUTES les données de type struct (charges, enveloppes,
+//  positions, chemins, résultats de section critique, ...) doivent être
+//  directement manipulables côté Python — indexables comme un dict,
+//  sérialisables en JSON (json.dumps) — sans jamais passer par un objet
+//  C++ opaque ni obliger l'appelant à appeler explicitement une méthode
+//  de conversion.
+//
+//  Toutes les conversions sont centralisées dans DictConverter (voir
+//  DictConverter.h) et accessibles depuis n'importe quel point de ce
+//  fichier via DictConverter::toDict(...).
 // =============================================================================
-inline py::dict loadDeliveryToDict(const load_delivery &d) {
-  py::dict out;
-  out["load"] = d.load; // dict[str, dict[str, float]] (conversion auto via
-                        // pybind11/stl.h)
-  out["span"] = d.span;
-  out["section"] = d.section;
-  out["maximum_value"] = d.maximum_value;
-  out["position"] = d.position;
-  return out;
-}
-
-inline py::dict loadEnvelopeToDict(const Output::LoadEnvelope &e) {
-  py::dict out;
-  out["point_load"] = loadDeliveryToDict(e.pointLoad);
-  out["rectangular_load"] = loadDeliveryToDict(e.rectangularLoad);
-  out["combined_load"] = loadDeliveryToDict(e.combinedLoad);
-  return out;
-}
-
-// -- Convertisseurs supplémentaires (un par struct) --------------------------
-
-inline py::dict loadToDict(const load &l) {
-  py::dict out;
-  out["intensity"] = l.Intensity;
-  out["length"] = l.Length;
-  out["name"] = l.name;
-  return out;
-}
-
-inline py::dict position1DToDict(const Position1D &p) {
-  py::dict out;
-  out["max_position"] = p.max_position;
-  out["value"] = p.value;
-  return out;
-}
-
-inline py::dict position2DToDict(const Position2D &p) {
-  py::dict out;
-  out["i"] = p.i;
-  out["j"] = p.j;
-  out["val"] = p.val;
-  return out;
-}
-
-inline py::dict position3DToDict(const Position3D &p) {
-  py::dict out;
-  out["i"] = p.i;
-  out["j"] = p.j;
-  out["k"] = p.k;
-  out["val"] = p.val;
-  return out;
-}
-
-inline py::dict combineLoadPositionToDict(const CombineLoadPosition &c) {
-  py::dict out;
-  out["max_position"] = c.max_position;
-  out["position"] = c.position;
-  out["value"] = c.value;
-  out["addition"] = c.Addition;
-  return out;
-}
-
-inline py::dict configurationToDict(const Configuration &c) {
-  py::dict out;
-  out["spans"] = c.spans;
-  out["steps"] = c.steps;
-  out["inertie"] = c.Inertie;
-  out["young_module"] = c.YoungModule;
-  py::list pt;
-  for (const auto &l : c.Point_LOAD)
-    pt.append(loadToDict(l));
-  py::list dl;
-  for (const auto &l : c.Rectangulare_LOAD)
-    dl.append(loadToDict(l));
-  out["point_loads"] = pt;
-  out["distrib_loads"] = dl;
-  return out;
-}
-
-inline py::dict projectPathsToDict(const ProjectPaths &p) {
-  py::dict out;
-  out["root"] = p.root;
-  out["input"] = p.input;
-  out["influence_lines"] = p.influence_lines;
-  out["critical_values"] = p.critical_values;
-  out["load_envelopes"] = p.load_envelopes;
-  out["load_positioning"] = p.load_positioning;
-  out["env_global"] = p.env_global;
-  out["env_global_point"] = p.env_global_point;
-  out["env_global_dist"] = p.env_global_dist;
-  out["env_global_combined"] = p.env_global_combined;
-  out["env_critical"] = p.env_critical;
-  out["env_critical_point"] = p.env_critical_point;
-  out["env_critical_dist"] = p.env_critical_dist;
-  out["env_critical_combined"] = p.env_critical_combined;
-  out["pos_global"] = p.pos_global;
-  out["pos_global_point"] = p.pos_global_point;
-  out["pos_global_dist"] = p.pos_global_dist;
-  out["pos_global_combined"] = p.pos_global_combined;
-  out["pos_critical"] = p.pos_critical;
-  out["pos_critical_point"] = p.pos_critical_point;
-  out["pos_critical_dist"] = p.pos_critical_dist;
-  out["pos_critical_combined"] = p.pos_critical_combined;
-  return out;
-}
 
 // =============================================================================
 //  Wrappers "propriétaires" — voir note en tête de fichier.
@@ -282,8 +185,9 @@ Load(intensity=[45.0, 10.0, 25.0], length=[0.0, 3.0, 5.0, 2.0], name="UDL2")
       .def_readwrite("intensity", &load::Intensity)
       .def_readwrite("length", &load::Length)
       .def_readwrite("name", &load::name)
-      .def("to_dict", &loadToDict,
-           "Convertit en dict Python { 'intensity', 'length', 'name' }.")
+      .def(
+          "to_dict", [](const load &l) { return DictConverter::toDict(l); },
+          "Convertit en dict Python { 'intensity', 'length', 'name' }.")
       .def("__repr__", [](const load &l) {
         return "<Load name=" + l.name +
                " n_points=" + std::to_string(l.Intensity.size()) + ">";
@@ -293,8 +197,10 @@ Load(intensity=[45.0, 10.0, 25.0], length=[0.0, 3.0, 5.0, 2.0], name="UDL2")
       .def(py::init<>())
       .def_readwrite("max_position", &Position1D::max_position)
       .def_readwrite("value", &Position1D::value)
-      .def("to_dict", &position1DToDict,
-           "Convertit en dict Python { 'max_position', 'value' }.")
+      .def(
+          "to_dict",
+          [](const Position1D &p) { return DictConverter::toDict(p); },
+          "Convertit en dict Python { 'max_position', 'value' }.")
       .def("__repr__", [](const Position1D &p) {
         return "<Position1D max_position=" + std::to_string(p.max_position) +
                " value=" + std::to_string(p.value) + ">";
@@ -305,8 +211,10 @@ Load(intensity=[45.0, 10.0, 25.0], length=[0.0, 3.0, 5.0, 2.0], name="UDL2")
       .def_readwrite("i", &Position2D::i)
       .def_readwrite("j", &Position2D::j)
       .def_readwrite("val", &Position2D::val)
-      .def("to_dict", &position2DToDict,
-           "Convertit en dict Python { 'i', 'j', 'val' }.")
+      .def(
+          "to_dict",
+          [](const Position2D &p) { return DictConverter::toDict(p); },
+          "Convertit en dict Python { 'i', 'j', 'val' }.")
       .def("__repr__", [](const Position2D &p) {
         return "<Position2D i=" + std::to_string(p.i) +
                " j=" + std::to_string(p.j) + " val=" + std::to_string(p.val) +
@@ -319,8 +227,10 @@ Load(intensity=[45.0, 10.0, 25.0], length=[0.0, 3.0, 5.0, 2.0], name="UDL2")
       .def_readwrite("j", &Position3D::j)
       .def_readwrite("k", &Position3D::k)
       .def_readwrite("val", &Position3D::val)
-      .def("to_dict", &position3DToDict,
-           "Convertit en dict Python { 'i', 'j', 'k', 'val' }.")
+      .def(
+          "to_dict",
+          [](const Position3D &p) { return DictConverter::toDict(p); },
+          "Convertit en dict Python { 'i', 'j', 'k', 'val' }.")
       .def("__repr__", [](const Position3D &p) {
         return "<Position3D i=" + std::to_string(p.i) +
                " j=" + std::to_string(p.j) + " k=" + std::to_string(p.k) +
@@ -333,9 +243,11 @@ Load(intensity=[45.0, 10.0, 25.0], length=[0.0, 3.0, 5.0, 2.0], name="UDL2")
       .def_readwrite("position", &CombineLoadPosition::position)
       .def_readwrite("value", &CombineLoadPosition::value)
       .def_readwrite("addition", &CombineLoadPosition::Addition)
-      .def("to_dict", &combineLoadPositionToDict,
-           "Convertit en dict Python { 'max_position', 'position', 'value', "
-           "'addition' }.");
+      .def(
+          "to_dict",
+          [](const CombineLoadPosition &c) { return DictConverter::toDict(c); },
+          "Convertit en dict Python { 'max_position', 'position', 'value', "
+          "'addition' }.");
 
   py::class_<load_delivery>(
       m, "LoadDelivery",
@@ -347,9 +259,11 @@ Load(intensity=[45.0, 10.0, 25.0], length=[0.0, 3.0, 5.0, 2.0], name="UDL2")
       .def_readwrite("section", &load_delivery::section)
       .def_readwrite("maximum_value", &load_delivery::maximum_value)
       .def_readwrite("position", &load_delivery::position)
-      .def("to_dict", &loadDeliveryToDict,
-           "Convertit en dict Python standard (load, span, section, "
-           "maximum_value, position).")
+      .def(
+          "to_dict",
+          [](const load_delivery &d) { return DictConverter::toDict(d); },
+          "Convertit en dict Python standard (load, span, section, "
+          "maximum_value, position).")
       .def("__repr__", [](const load_delivery &d) {
         return "<LoadDelivery span=" + std::to_string(d.span) +
                " section=" + std::to_string(d.section) +
@@ -458,16 +372,32 @@ Load(intensity=[45.0, 10.0, 25.0], length=[0.0, 3.0, 5.0, 2.0], name="UDL2")
       .def_readwrite("steps", &Configuration::steps)
       .def_readwrite("inertie", &Configuration::Inertie)
       .def_readwrite("young_module", &Configuration::YoungModule)
-      .def_readwrite("point_loads", &Configuration::Point_LOAD)
-      .def_readwrite("distrib_loads", &Configuration::Rectangulare_LOAD)
+      .def_property(
+          "point_loads",
+          [](Configuration &c) { return DictConverter::toDictList(c.Point_LOAD); },
+          [](Configuration &c, const std::vector<load> &v) { c.Point_LOAD = v; },
+          "Liste de charges ponctuelles. En lecture : list[dict]. En "
+          "écriture : accepte une liste de Load.")
+      .def_property(
+          "distrib_loads",
+          [](Configuration &c) {
+            return DictConverter::toDictList(c.Rectangulare_LOAD);
+          },
+          [](Configuration &c, const std::vector<load> &v) {
+            c.Rectangulare_LOAD = v;
+          },
+          "Liste de charges réparties. En lecture : list[dict]. En "
+          "écriture : accepte une liste de Load.")
       .def("load_from_data", &Configuration::loadFromData, py::arg("spans"),
            py::arg("steps"), py::arg("young_module"), py::arg("inertie"),
            py::arg("point_loads"), py::arg("distrib_loads"))
-      .def("to_dict", &configurationToDict,
-           "Convertit en dict Python { 'spans', 'steps', 'inertie', "
-           "'young_module', "
-           "'point_loads', 'distrib_loads' } (point_loads/distrib_loads : "
-           "liste de dicts).");
+      .def(
+          "to_dict",
+          [](const Configuration &c) { return DictConverter::toDict(c); },
+          "Convertit en dict Python { 'spans', 'steps', 'inertie', "
+          "'young_module', "
+          "'point_loads', 'distrib_loads' } (point_loads/distrib_loads : "
+          "liste de dicts).");
 
   // ── Loading (enveloppes de charge) ──────────────────────────────────────
   // Note : CriticalSectionResult n'est plus le type de retour de
@@ -477,17 +407,25 @@ Load(intensity=[45.0, 10.0, 25.0], length=[0.0, 3.0, 5.0, 2.0], name="UDL2")
       m, "CriticalSectionResult",
       "Résultat de Loading.compute_critical_section() : détail de charge "
       "(point / réparti / combiné) à la section critique d'une travée.")
-      .def_readonly("point", &Loading::CriticalSectionResult::point)
-      .def_readonly("rect", &Loading::CriticalSectionResult::rect)
-      .def_readonly("combined", &Loading::CriticalSectionResult::combined)
+      .def_property_readonly(
+          "point",
+          [](const Loading::CriticalSectionResult &r) {
+            return DictConverter::toDict(r.point);
+          })
+      .def_property_readonly(
+          "rect",
+          [](const Loading::CriticalSectionResult &r) {
+            return DictConverter::toDict(r.rect);
+          })
+      .def_property_readonly(
+          "combined",
+          [](const Loading::CriticalSectionResult &r) {
+            return DictConverter::toDict(r.combined);
+          })
       .def(
           "to_dict",
           [](const Loading::CriticalSectionResult &r) {
-            py::dict out;
-            out["point"] = loadDeliveryToDict(r.point);
-            out["rect"] = loadDeliveryToDict(r.rect);
-            out["combined"] = loadDeliveryToDict(r.combined);
-            return out;
+            return DictConverter::toDict(r);
           },
           "Convertit en dict Python { 'point': {...}, 'rect': {...}, "
           "'combined': {...} }.");
@@ -505,41 +443,77 @@ Load(intensity=[45.0, 10.0, 25.0], length=[0.0, 3.0, 5.0, 2.0], name="UDL2")
            py::arg("span_node_positions"), py::arg("spans"),
            py::arg("point_loads"), py::arg("distrib_loads"))
       // Renvoyés en dict Python directement manipulable (voir
-      // loadDeliveryToDict) plutôt qu'en objet LoadDelivery.
+      // DictConverter::toDict) plutôt qu'en objet LoadDelivery.
       .def_property_readonly("rectangular_load",
                              [](Loading &self) {
-                               return loadDeliveryToDict(self.Rectangular_load);
+                               return DictConverter::toDict(self.Rectangular_load);
                              })
       .def_property_readonly(
           "point_load",
-          [](Loading &self) { return loadDeliveryToDict(self.Point_load); })
+          [](Loading &self) { return DictConverter::toDict(self.Point_load); })
       .def_property_readonly(
           "combined_load",
-          [](Loading &self) { return loadDeliveryToDict(self.Combined_load); })
+          [](Loading &self) {
+            return DictConverter::toDict(self.Combined_load);
+          })
       .def_readwrite("spans", &Loading::spans)
-      .def_readwrite("point_load_inputs", &Loading::Point_LOAD)
-      .def_readwrite("distrib_load_inputs", &Loading::Rectangulare_LOAD)
+      .def_property(
+          "point_load_inputs",
+          [](Loading &self) {
+            return DictConverter::toDictList(self.Point_LOAD);
+          },
+          [](Loading &self, const std::vector<load> &v) {
+            self.Point_LOAD = v;
+          },
+          "Charges ponctuelles fournies au constructeur. En lecture : "
+          "list[dict]. En écriture : accepte une liste de Load.")
+      .def_property(
+          "distrib_load_inputs",
+          [](Loading &self) {
+            return DictConverter::toDictList(self.Rectangulare_LOAD);
+          },
+          [](Loading &self, const std::vector<load> &v) {
+            self.Rectangulare_LOAD = v;
+          },
+          "Charges réparties fournies au constructeur. En lecture : "
+          "list[dict]. En écriture : accepte une liste de Load.")
       .def("one_point_load", &Loading::OnePointLoad, py::arg("intensity"),
            py::arg("span"), py::arg("section"), py::arg("alpha"))
-      .def("plural_point_load", &Loading::PluralPointLoad, py::arg("intensity"),
-           py::arg("length"), py::arg("span"), py::arg("section"))
+      .def(
+          "plural_point_load",
+          [](Loading &self, const std::vector<double> &intensity,
+             const std::vector<double> &length, size_t span, size_t section) {
+            return DictConverter::toDict(
+                self.PluralPointLoad(intensity, length, span, section));
+          },
+          py::arg("intensity"), py::arg("length"), py::arg("span"),
+          py::arg("section"),
+          "Renvoie un dict Python { 'max_position', 'value' }.")
       .def("one_rectangular_load", &Loading::OneRectangularLoad,
            py::arg("intensity"), py::arg("span"), py::arg("section"),
            py::arg("begin"), py::arg("end"))
-      .def("plural_rectangular_load", &Loading::PluralRectangularLoad,
-           py::arg("intensity"), py::arg("length"), py::arg("span"),
-           py::arg("section"))
-      .def("combined_load_at", &Loading::CombinedLoad, py::arg("span"),
-           py::arg("section"))
+      .def(
+          "plural_rectangular_load",
+          [](Loading &self, const std::vector<double> &intensity,
+             const std::vector<double> &length, size_t span, size_t section) {
+            return DictConverter::toDict(
+                self.PluralRectangularLoad(intensity, length, span, section));
+          },
+          py::arg("intensity"), py::arg("length"), py::arg("span"),
+          py::arg("section"),
+          "Renvoie un dict Python { 'max_position', 'value' }.")
+      .def(
+          "combined_load_at",
+          [](Loading &self, size_t span, size_t section) {
+            return DictConverter::toDict(self.CombinedLoad(span, section));
+          },
+          py::arg("span"), py::arg("section"),
+          "Renvoie un dict Python { 'max_position', 'position', 'value', "
+          "'addition' }.")
       .def(
           "compute_critical_section",
           [](Loading &self, size_t span) {
-            auto result = self.computeCriticalSection(span);
-            py::dict out;
-            out["point"] = loadDeliveryToDict(result.point);
-            out["rect"] = loadDeliveryToDict(result.rect);
-            out["combined"] = loadDeliveryToDict(result.combined);
-            return out;
+            return DictConverter::toDict(self.computeCriticalSection(span));
           },
           py::arg("span"),
           "Calcule, pour la travée donnée, la section critique et le "
@@ -579,9 +553,11 @@ Load(intensity=[45.0, 10.0, 25.0], length=[0.0, 3.0, 5.0, 2.0], name="UDL2")
                     &ProjectPaths::pos_critical_combined)
       .def("create_all", &ProjectPaths::createAll,
            "Crée sur disque tous les sous-dossiers d'export (appel explicite).")
-      .def("to_dict", &projectPathsToDict,
-           "Convertit en dict Python avec tous les chemins (root, input, "
-           "influence_lines, …).");
+      .def(
+          "to_dict",
+          [](const ProjectPaths &p) { return DictConverter::toDict(p); },
+          "Convertit en dict Python avec tous les chemins (root, input, "
+          "influence_lines, …).");
 
   // ── UpdatePositions ──────────────────────────────────────────────────────
   py::class_<UpdatePositions>(
@@ -608,12 +584,26 @@ Load(intensity=[45.0, 10.0, 25.0], length=[0.0, 3.0, 5.0, 2.0], name="UDL2")
       "directement manipulable (voir Output) — cette classe reste "
       "disponible pour un usage avancé, mais n'est plus le type de "
       "retour par défaut.")
-      .def_readonly("point_load", &Output::LoadEnvelope::pointLoad)
-      .def_readonly("rectangular_load", &Output::LoadEnvelope::rectangularLoad)
-      .def_readonly("combined_load", &Output::LoadEnvelope::combinedLoad)
-      .def("to_dict", &loadEnvelopeToDict,
-           "Convertit en dict Python standard (point_load, "
-           "rectangular_load, combined_load), chacun lui-même un dict.")
+      .def_property_readonly(
+          "point_load",
+          [](const Output::LoadEnvelope &e) {
+            return DictConverter::toDict(e.pointLoad);
+          })
+      .def_property_readonly(
+          "rectangular_load",
+          [](const Output::LoadEnvelope &e) {
+            return DictConverter::toDict(e.rectangularLoad);
+          })
+      .def_property_readonly(
+          "combined_load",
+          [](const Output::LoadEnvelope &e) {
+            return DictConverter::toDict(e.combinedLoad);
+          })
+      .def(
+          "to_dict",
+          [](const Output::LoadEnvelope &e) { return DictConverter::toDict(e); },
+          "Convertit en dict Python standard (point_load, "
+          "rectangular_load, combined_load), chacun lui-même un dict.")
       .def("__repr__", [](const Output::LoadEnvelope &e) {
         return "<LoadEnvelope point_load.maximum_value=" +
                std::to_string(e.pointLoad.maximum_value) +
@@ -758,27 +748,27 @@ out.compute_load_envelopes()
                              [](PyOutput &s) { return s.impl.NodeLengths; })
       .def_property_readonly("bending_moment_max_positions",
                              [](PyOutput &s) {
-                               return position3DToDict(
+                               return DictConverter::toDict(
                                    s.impl.BendingMomentMaxPositions);
                              })
       .def_property_readonly("deflection_max_positions",
                              [](PyOutput &s) {
-                               return position3DToDict(
+                               return DictConverter::toDict(
                                    s.impl.DeflectionMaxPositions);
                              })
       .def_property_readonly("rotation_max_positions",
                              [](PyOutput &s) {
-                               return position3DToDict(
+                               return DictConverter::toDict(
                                    s.impl.RotationMaxPositions);
                              })
       .def_property_readonly("shear_force_max_positions",
                              [](PyOutput &s) {
-                               return position3DToDict(
+                               return DictConverter::toDict(
                                    s.impl.ShearForceMaxPositions);
                              })
       .def_property_readonly("support_moment_max_positions",
                              [](PyOutput &s) {
-                               return position2DToDict(
+                               return DictConverter::toDict(
                                    s.impl.SupportMomentMaxPositions);
                              })
       // ── Enveloppes de charge — disponibles après compute_load_envelopes()
@@ -788,47 +778,47 @@ out.compute_load_envelopes()
       // Générales (toute la poutre) :
       .def_property_readonly("bending_moment_general_envelope",
                              [](PyOutput &s) {
-                               return loadEnvelopeToDict(
+                               return DictConverter::toDict(
                                    s.impl.BendingMomentGeneralLoadEnvelope);
                              })
       .def_property_readonly("shear_force_general_envelope",
                              [](PyOutput &s) {
-                               return loadEnvelopeToDict(
+                               return DictConverter::toDict(
                                    s.impl.ShearForceGeneralLoadEnvelope);
                              })
       .def_property_readonly("deflection_general_envelope",
                              [](PyOutput &s) {
-                               return loadEnvelopeToDict(
+                               return DictConverter::toDict(
                                    s.impl.DeflectionGeneralLoadEnvelope);
                              })
       .def_property_readonly("rotation_general_envelope",
                              [](PyOutput &s) {
-                               return loadEnvelopeToDict(
+                               return DictConverter::toDict(
                                    s.impl.RotationGeneralLoadEnvelope);
                              })
       // Critiques (section critique uniquement) :
       .def_property_readonly("bending_moment_critical_envelope",
                              [](PyOutput &s) {
-                               return loadEnvelopeToDict(
+                               return DictConverter::toDict(
                                    s.impl.BendingMomentCriticalLoadEnvelope);
                              })
       .def_property_readonly("shear_force_critical_envelope",
                              [](PyOutput &s) {
-                               return loadEnvelopeToDict(
+                               return DictConverter::toDict(
                                    s.impl.ShearForceCriticalLoadEnvelope);
                              })
       .def_property_readonly("deflection_critical_envelope",
                              [](PyOutput &s) {
-                               return loadEnvelopeToDict(
+                               return DictConverter::toDict(
                                    s.impl.DeflectionCriticalLoadEnvelope);
                              })
       .def_property_readonly("rotation_critical_envelope",
                              [](PyOutput &s) {
-                               return loadEnvelopeToDict(
+                               return DictConverter::toDict(
                                    s.impl.RotationCriticalLoadEnvelope);
                              })
       .def_property_readonly(
-          "paths", [](PyOutput &s) { return projectPathsToDict(s.impl.Paths); })
+          "paths", [](PyOutput &s) { return DictConverter::toDict(s.impl.Paths); })
       // ── Champs hérités de Hyperstatique ──────────────────────────────
       .def_property_readonly("number_of_spans",
                              [](PyOutput &s) { return s.impl.number_of_spans; })
