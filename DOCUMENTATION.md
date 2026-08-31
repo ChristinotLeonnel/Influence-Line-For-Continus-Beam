@@ -523,7 +523,15 @@ Lors d'un appel à `export_all()`, les sous-dossiers suivants sont générés :
 
 ## 7. Guide Complet des Exemples Pas à Pas
 
-### Script Python Exhaustif
+Le répertoire `exemple/` contient 5 scripts prêts à exécuter illustrant les fonctionnalités de la librairie :
+
+1. **`ex01_isostatique.py`** : Lignes d'influence ($M, V, w, \theta$) pour une poutre simple isostatique.
+2. **`ex02_hyperstatique.py`** : Calculs des moments sur appuis et mi-travée pour une poutre continue hyperstatique.
+3. **`ex03_output_enveloppes.py`** : Workflow haut niveau avec la classe `Output` et export des enveloppes de sollicitation.
+4. **`ex04_loading_section_critique.py`** : Utilisation directe du moteur `Loading` et recherche des sections critiques.
+5. **`ex05_visualisation_complete.py`** : Démonstration complète des **7 fonctions du module `plot`**.
+
+### Script Exemple Globale
 
 ```python
 import Tsaraloha.LIPoutreContinue as lipc

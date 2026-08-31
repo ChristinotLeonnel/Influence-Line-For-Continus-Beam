@@ -10,12 +10,13 @@ Objectif : utiliser la classe Loading directement pour :
 Utile quand on veut un contrôle fin sans passer par Output.
 """
 
+from Tsaraloha import LIPoutreContinue
 import matplotlib.pyplot as plt
 import Tsaraloha.LIPoutreContinue as lipc
 
 
 # ── 1. Construction du modèle via Hyperstatique ────────────────────────────────
-L_spans = [8.70, 7.45, 19.30, 7.8] 
+L_spans = [8.70, 7.45, 19.30, 17.8] 
 E_val   = 30e9
 I_val   = 0.35 * 0.65**3 / 12
 steps   = 0.5
@@ -93,6 +94,7 @@ from Tsaraloha.LIPoutreContinue.plot import (
     plot_support_moments,
     plot_load_on_influence_line,
     plot_load_summary,
+    plot_output_full
 )
 
 # 5a. Enveloppe moment mi-travée de chaque travée
