@@ -204,6 +204,43 @@ up = lipc.UpdatePositions(root="/chemin/de/sortie", input_lines=["..."])
 up.run()  # compute() + write_all()
 ```
 
+
+### Visualisation Graphique (Matplotlib)
+
+Le module de visualisation `Tsaraloha.LIPoutreContinue.plot` fournit un moteur de tracé complet sous fond sombre pour vos lignes d'influence, enveloppes et positionnements de charges :
+
+```python
+import matplotlib.pyplot as plt
+import Tsaraloha.LIPoutreContinue as lipc
+from Tsaraloha.LIPoutreContinue.plot import plot_output_full, plot_load_summary
+
+out = lipc.Output(E=[30e9]*3, I=[1.2e-3]*3, L=[10.0, 14.0, 10.0], steps=0.5)
+out.compute()
+
+# Visualisation synthétique (M appuis, M, V, w mi-travées)
+fig_full = plot_output_full(out)
+
+# Résumé de chargement avec représentation des essieux et segments de UDL
+camion = lipc.Load(intensity=[60.0, 120.0], length=[0.0, 2.5], name="Camion")
+udl = lipc.Load(intensity=[12.0, 20.0], length=[0.0, 6.0, 2.0], name="UDL")
+ch = lipc.Loading(
+    curves=out.BM, position=out.X,
+    span_node_positions=out.span_node_positions,
+    spans=out.L_spans,
+    point_loads=[camion], distrib_loads=[udl]
+)
+fig_sum = plot_load_summary(out.X, out.BM, ch, span=1, section=14)
+
+plt.show()
+```
+
+#### Fonctionnalités de Visualisation :
+* **Détection automatique des appuis** avec symboles ▼ et étiquettes de position (ex: `A1: 8.70 m`).
+* **Tracé des convois d'essieux** avec flèches annotées des forces en kN.
+* **Représentation des charges réparties (UDL) multi-tronçons** par des blocs hachurés de hauteur proportionnelle à leur intensité et surbrillance colorée nette sur la courbe de ligne d'influence.
+
+---
+
 ### Gestion des erreurs
 
 L'API Python (`Output`, `Hyperstatique`, `Isostatique`, `Load`) valide ses

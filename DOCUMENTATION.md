@@ -20,6 +20,7 @@ Cette librairie haute performance (moteur C++20 avec interface Python pybind11) 
    - [4.6. Classe `UpdatePositions` (Repositionnement des Charges)](#46-classe-updatepositions-repositionnement-des-charges)
    - [4.7. Classe `ProjectPaths` (Gestionnaire d'Arborescence)](#47-classe-projectpaths-gestionnaire-darborescence)
    - [4.8. Structures de Données & Résultats (`Position1D/2D/3D`, `LoadDelivery`, ...)](#48-structures-de-données--résultats)
+   - [4.9. Module `plot` (Visualisation Graphique)](#49-module-plot-visualisation-graphique)
 5. [Référence de l'API C++ (`StructuralAnalysis.h`)](#5-référence-de-lapi-c-structuralanalysish)
 6. [Arborescence et Formats d'Exports JSON / TXT](#6-arborescence-et-formats-dexports-json--txt)
 7. [Guide Complet des Exemples Pas à Pas](#7-guide-complet-des-exemples-pas-à-pas)
@@ -364,6 +365,57 @@ ProjectPaths(root)
   - `'value'` : Contribution de cette charge $[\text{kN}\cdot\text{m}]$ ou $[\text{kN}]$.
   - `'alpha'` : Indice de discrétisation de position.
 - **`to_dict()`** -> `dict`.
+
+
+---
+
+### 4.9. Module `plot` (Visualisation Graphique)
+
+Le module `Tsaraloha.LIPoutreContinue.plot` fournit un ensemble de fonctions de haut niveau basées sur **Matplotlib** pour tracer des graphiques de qualité professionnelle, avec un thème sombre élégant et des rendus précis des charges.
+
+#### Fonctions de Visualisation Disponibles
+
+| Fonction | Signature | Description |
+| :--- | :--- | :--- |
+| **`plot_isostatique_influence_lines`** | `(poutre, x, *, title="", figsize=(13, 7))` | Génère 4 panneaux (Moment $M$, Effort tranchant $V$, Flèche $w$ et Rotation $\theta$) pour une poutre isostatique à la section d'abscisse $x$. |
+| **`plot_hyperstatique_influence_lines`** | `(hyper, BM, X, *, span=0, section=None, title="", figsize=(13, 5))` | Affiche les courbes de lignes d'influence du moment fléchissant pour les sections 1/4, 1/2, et 3/4 d'une travée spécifique (ou une section spécifique). |
+| **`plot_support_moments`** | `(hyper, X, *, title="", figsize=(13, 5))` | Trace les lignes d'influence des moments sur tous les appuis intermédiaires. |
+| **`plot_bm_envelopes`** | `(X, BM, *, span_lengths=None, title="", figsize=(13, 5))` | Affiche l'enveloppe des moments fléchissants à mi-travée de chaque travée. |
+| **`plot_load_on_influence_line`** | `(X, li_curve, loads, alpha_opt, *, span_lengths=None, ylabel="Moment [kN.m]", title="", figsize=(13, 5), load_type="point")` | Superpose les charges sur la courbe de ligne d'influence à la position optimale donnée. |
+| **`plot_load_summary`** | `(X, BM, loading, span, section, *, title="", figsize=(14, 12))` | Trace un résumé de chargement en 3 panneaux pour une section : charges ponctuelles optimales, charges réparties optimales, et toutes les charges combinées en action à leur position optimale globale. |
+| **`plot_output_full`** | `(out, *, figsize=(14, 10), title="")` | Vue synthétique complète en 4 panneaux à partir d'un objet `Output` (moments sur appuis, moments mi-travée, efforts tranchants mi-travée, flèches mi-travée). |
+
+#### Représentation Graphique Avancée des Charges
+- **Appuis** : Représentés par des repères verticaux pointillés jaunes munis de triangles ▼ et d'étiquettes de position (ex: `A1 8.70 m`).
+- **Convois (Charges Ponctuelles)** : Essieux individuels représentés par des flèches annotées avec leurs charges en $\text{kN}$.
+- **Charges réparties (UDL) segmentées** : Chaque tronçon d'intensité constante est coloré sur la courbe de ligne d'influence avec des limites verticales nettes (interpolées mathématiquement) et représenté au-dessus par un rectangle hachuré dont la hauteur est proportionnelle à son intensité de charge en $\text{kN/m}$.
+
+#### Exemple d'utilisation
+```python
+import matplotlib.pyplot as plt
+import Tsaraloha.LIPoutreContinue as lipc
+from Tsaraloha.LIPoutreContinue.plot import plot_load_summary, plot_output_full
+
+# Initialisation et calcul
+out = lipc.Output(E=[30e9]*3, I=[1.2e-3]*3, L=[10.0, 14.0, 10.0], steps=0.5)
+out.compute()
+
+# Configuration des charges
+camion = lipc.Load(intensity=[60.0, 120.0], length=[0.0, 2.5], name="Camion")
+surcharge = lipc.Load(intensity=[12.0, 20.0], length=[0.0, 6.0, 2.0], name="UDL")
+out.set_loads(point_loads=[camion], distrib_loads=[surcharge])
+
+# Tracé du résumé de chargement pour la travée 1, section centrale
+loading_engine = lipc.Loading(
+    curves=out.BM, position=out.X,
+    span_node_positions=out.span_node_positions,
+    spans=out.L_spans,
+    point_loads=[camion], distrib_loads=[surcharge]
+)
+
+fig = plot_load_summary(out.X, out.BM, loading_engine, span=1, section=14)
+plt.show()
+```
 
 ---
 

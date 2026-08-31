@@ -612,22 +612,192 @@ class Output(_RawOutput):
 
 from .report import generate_calculation_note, generate_calculation_pdf
 
-# ── Autres structures — ré-exportées telles quelles (API déjà simple,
-#    peu de manières incorrectes de les utiliser) ─────────────────────────
+# ── Configuration ────────────────────────────────────────────────────────────
 Configuration = _core.Configuration
-Loading = _core.Loading
 
-# ── Chemins d'export et repositionnement des charges ────────────────────────
+# ── Chemins d'export et repositionnement des charges ─────────────────────────
 ProjectPaths = _core.ProjectPaths
 UpdatePositions = _core.UpdatePositions
 
-# ── Structures de résultats ──────────────────────────────────────────────────
+# ── Structures de résultats ───────────────────────────────────────────────────
+# IMPORTANT : bien que le fichier .pyi déclare ces types comme des classes avec
+# des attributs (ex. Position3D.val), pybind11 les sérialise en **dict Python**
+# à la frontière C++/Python. L'accès se fait donc TOUJOURS par clé : d['val'].
 Position1D = _core.Position1D
 Position2D = _core.Position2D
 Position3D = _core.Position3D
 CombineLoadPosition = _core.CombineLoadPosition
 LoadDelivery = _core.LoadDelivery
 CriticalSectionResult = _core.CriticalSectionResult
+
+
+class Loading(_core.Loading):
+    """
+    Moteur de chargement : convole les charges mobiles avec les lignes
+    d'influence calculées par ``Hyperstatique`` pour trouver les positions
+    et valeurs optimales section par section.
+
+    Parameters
+    ----------
+    curves : list[list[list[float]]]
+        Tenseur 3-D des lignes d'influence ``[travée][section][alpha]``
+        (typiquement ``Hyperstatique.bending_moments()``).
+    position : list[float]
+        Coordonnées globales ``x`` de chaque nœud (``Hyperstatique.points_x_coordinates(...)``).
+    span_node_positions : list[list[float]]
+        Nœuds de discrétisation par travée (``Hyperstatique.span_node_positions``).
+    spans : list[float]
+        Longueurs des travées en mètres (``Hyperstatique.L_spans``).
+    point_loads : list[Load]
+        Charges ponctuelles (convois d'essieux).
+    distrib_loads : list[Load]
+        Charges réparties (UDL, surcharges).
+
+    Examples
+    --------
+    Construction depuis un ``Hyperstatique`` :
+
+        >>> hyper = Hyperstatique(E=[30e9]*2, I=[1e-3]*2, L=[10.0, 12.0], steps=0.5)
+        >>> BM    = hyper.bending_moments()
+        >>> X     = hyper.points_x_coordinates(hyper.span_node_positions)
+        >>> ch    = Loading(
+        ...     curves              = BM,
+        ...     position            = X,
+        ...     span_node_positions = hyper.span_node_positions,
+        ...     spans               = hyper.L_spans,
+        ...     point_loads         = [Load(intensity=[100.0], length=[0.0], name="P")],
+        ...     distrib_loads       = [Load(intensity=[10.0], length=[0.0, 5.0], name="q")],
+        ... )
+
+    Méthodes et structures de retour
+    ---------------------------------
+
+    **one_point_load(intensity, span, section, alpha) -> float**
+        Effet d'une charge ponctuelle unique à la position ``alpha``.
+
+        Entrée :
+            - intensity (float) : force en kN
+            - span (int)        : indice de travée (0-based)
+            - section (int)     : indice de section dans la travée (0-based)
+            - alpha (int)       : indice de position de la charge (0-based)
+        Retour : ``float`` — moment fléchissant en kN·m.
+
+        Exemple ::
+
+            val = ch.one_point_load(intensity=100.0, span=0, section=5, alpha=3)
+            # val = -28.75  (float)
+
+    **plural_point_load(intensity, length, span, section) -> dict**
+        Position optimale d'un convoi d'essieux sur une section donnée.
+
+        Entrée :
+            - intensity (list[float]) : forces des essieux [kN]
+            - length    (list[float]) : entraxes des essieux [m]
+            - span      (int)         : indice de travée
+            - section   (int)         : indice de section dans la travée
+        Retour ``dict`` (Position1D) ::
+
+            {
+                'max_position': int,    # indice alpha optimal (position de la charge)
+                'value':        float,  # moment max obtenu [kN·m]
+            }
+
+        Exemple ::
+
+            pos = ch.plural_point_load([70.0, 130.0], [0.0, 1.8], span=1, section=14)
+            # pos = {'max_position': 32, 'value': 683.39}
+            print(pos['max_position'])  # 32
+            print(pos['value'])         # 683.39
+
+    **one_rectangular_load(intensity, span, section, begin, end) -> float**
+        Effet d'une charge répartie sur le tronçon [begin, end].
+
+        Entrée :
+            - intensity (float) : intensité en kN/m
+            - span      (int)   : indice de travée
+            - section   (int)   : indice de section
+            - begin     (int)   : indice alpha de début
+            - end       (int)   : indice alpha de fin
+        Retour : ``float`` — moment en kN·m.
+
+    **plural_rectangular_load(intensity, length, span, section) -> dict**
+        Position optimale d'une charge répartie plurielle.
+
+        Même structure de retour que ``plural_point_load`` (Position1D) ::
+
+            {
+                'max_position': int,    # indice alpha de début optimal
+                'value':        float,  # moment max [kN·m]
+            }
+
+        Exemple ::
+
+            pos = ch.plural_rectangular_load([12.0], [0.0, 6.0], span=1, section=14)
+            # pos = {'max_position': 29, 'value': 111.20}
+
+    **combined_load_at(span, section) -> dict**
+        Superpose et maximise les effets de TOUTES les charges (ponctuelles
+        + réparties) sur une section.
+
+        Retour ``dict`` (CombineLoadPosition) ::
+
+            {
+                'max_position': int,            # indice alpha global optimal
+                'position':     float,          # abscisse physique [m]
+                'value':        float,          # moment combiné max [kN·m]
+                'addition': {                   # détail par charge
+                    'NomDeLaCharge': {
+                        'Position': float,      # abscisse de cette charge [m]
+                        'value':    float,      # contribution [kN·m]
+                        'alpha':    int,        # indice de discrétisation
+                    },
+                    ...
+                }
+            }
+
+        Exemple ::
+
+            c = ch.combined_load_at(span=1, section=14)
+            # c['value']    = 1055.47
+            # c['position'] = 15.0
+            for nom, d in c['addition'].items():
+                print(nom, d['value'])   # contribution de chaque charge
+
+    **compute_critical_section(span) -> dict**
+        Détermine la section la plus sollicitée d'une travée pour chaque
+        type de charge.
+
+        Entrée :
+            - span (int) : indice de travée (0-based)
+        Retour ``dict`` (CriticalSectionResult) — 3 clés,
+        chacune est un ``dict`` de type ``LoadDelivery`` ::
+
+            {
+                'point': {                      # charge ponctuelle
+                    'span':          int,        # travée critique
+                    'section':       int,        # section critique (indice)
+                    'maximum_value': float,      # moment max [kN·m]
+                    'position':      float,      # abscisse [m] de la charge
+                    'load': {                   # détail par charge nommée
+                        'NomDeLaCharge': {
+                            'Position': float,
+                            'value':    float,
+                            'alpha':    int,
+                        },
+                    }
+                },
+                'rect':     { ... },            # même structure, charge répartie
+                'combined': { ... },            # même structure, charge combinée
+            }
+
+        Exemple ::
+
+            crit = ch.compute_critical_section(span=1)
+            print(crit['point']['section'])        # ex. 14
+            print(crit['point']['maximum_value'])  # ex. 683.39
+            print(crit['combined']['section'])     # ex. 14
+            print(crit['combined']['maximum_value'])  # ex. 1055.47
+    """
 
 __all__ = [
     "__version__",
