@@ -24,8 +24,6 @@ classifiers = [
     "Topic :: Scientific/Engineering",
     "Intended Audience :: Science/Research",
     "Operating System :: Microsoft :: Windows",
-    "Operating System :: POSIX :: Linux",
-    "Operating System :: MacOS",
 ]
 
 # Le coeur (Tsaraloha.LIPoutreContinue) n'a AUCUNE dépendance externe —
@@ -78,28 +76,11 @@ TSARALOHA_BUILD_EXAMPLES = "OFF"
 #  .github/workflows/wheels.yml. Voir https://cibuildwheel.pypa.io
 # =============================================================================
 [tool.cibuildwheel]
-# CPython 3.9 -> 3.13, 64 bits uniquement (pas de 32 bits, pas de PyPy —
-# la lib fait du calcul numérique lourd, PyPy n'apporte rien ici).
-build = "cp3{9,10,11,12,13}-*"
-skip = ["*-win32", "*-manylinux_i686", "*-musllinux*", "pp*"]
+# CPython 3.9 -> 3.13, Windows 64 bits uniquement.
+build = "cp3{9,10,11,12,13}-win_amd64"
+skip = ["pp*"]
 build-verbosity = 1
 
-# CMAKE_CXX_STANDARD 20 requiert un compilateur récent : les images
-# manylinux2014 par défaut (GCC ~10) ne suffisent pas -> manylinux_2_28
-# (GCC 12+, AlmaLinux 8 based) est nécessaire côté Linux.
-[tool.cibuildwheel.linux]
-manylinux-x86_64-image = "manylinux_2_28"
-manylinux-aarch64-image = "manylinux_2_28"
-
-[tool.cibuildwheel.macos]
-# macOS 11 minimum : suffisant pour C++20 avec Clang (Xcode récent sur les
-# runners GitHub Actions).
-environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }
-
-[[tool.cibuildwheel.overrides]]
-select = "*"
-inherit.test-command = "append"
 # Test fumée après build : le module s'importe et un calcul minimal tourne.
-# (module coeur uniquement — pas le suffixe [plot], gardé hors CI wheels
-# pour ne pas dépendre de matplotlib/numpy à la compilation)
 test-command = "python -c \"import Tsaraloha.LIPoutreContinue as m; o = m.Output(E=[210e9], I=[8e-4], L=[6.0], steps=1.0, root=''); o.compute(); print('OK', len(o.X))\""
+
