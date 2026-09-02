@@ -187,7 +187,7 @@ size_t Indice_of(std::vector<T>& vec, T& value) {
  * automatiquement par aucune classe du "core" — seule la couche Output/IO
  * l'invoque, et seulement quand on lui demande explicitement d'exporter.
  */
-void delivery(auto& data, std::filesystem::path path, std::string FileName) {
+inline void delivery(auto& data, std::filesystem::path path, std::string FileName) {
     json j = data;
     std::filesystem::create_directories(path);
     std::ofstream file(path / FileName);
@@ -198,7 +198,7 @@ void delivery(auto& data, std::filesystem::path path, std::string FileName) {
  * Écrit les informations d'un maximum 3D dans un fichier JSON.
  *   { "span", "section", "alpha", "value" }
  */
-void maximum_delivery(auto& data, json& file,
+inline void maximum_delivery(auto& data, json& file,
                               std::filesystem::path Path, std::string name) {
     file["span"]    = data.i;
     file["section"] = data.j;
@@ -211,7 +211,7 @@ void maximum_delivery(auto& data, json& file,
  * Écrit les informations d'une enveloppe de charge dans un fichier JSON.
  *   { "maximum", "span", "section", "position", "load" }
  */
-void loading_delivery(auto& data, json& file,
+inline void loading_delivery(auto& data, json& file,
                               std::filesystem::path Path, std::string name) {
     file["maximum"]  = data.maximum_value;
     file["span"]     = data.span;
