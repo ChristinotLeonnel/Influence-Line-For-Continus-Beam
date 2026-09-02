@@ -16,7 +16,7 @@ import Tsaraloha.LIPoutreContinue as lipc
 
 
 # ── 1. Construction du modèle via Hyperstatique ────────────────────────────────
-L_spans = [8.70, 7.45, 19.30, 17.8] 
+L_spans = [8.70, 17.45, 19.30, 17.8] 
 E_val   = 30e9
 I_val   = 0.35 * 0.65**3 / 12
 steps   = 0.5
@@ -30,9 +30,9 @@ BM    = hyper.bending_moments()
 X     = hyper.points_x_coordinates(hyper.span_node_positions)
 
 # ── 2. Définition des charges ──────────────────────────────────────────────────
-convoi_1 = lipc.Load(intensity=[70.0, 130.0, 130.0], length=[0.0, 1.8, 1.4], name="Convoi-Lourd")
-convoi_2 = lipc.Load(intensity=[50.0, 100.0],        length=[0.0, 2.5],       name="Convoi-Leger")
-udl      = lipc.Load(intensity=[12.0,20.0],               length=[0.0, 6.0,2.0],       name="UDL-12kNm")
+convoi_1 = lipc.Load(intensity=[70.0, 130.0, 130.0], length=[-40.0, 1.8, 1.4], name="Convoi-Lourd")
+convoi_2 = lipc.Load(intensity=[50.0, 100.0],        length=[30.0, 2.5],       name="Convoi-Leger")
+udl      = lipc.Load(intensity=[12.0,20.0],               length=[-30.0, 6.0,2.0],       name="UDL-12kNm")
 
 # ── 3. Instanciation de Loading ────────────────────────────────────────────────
 ch = lipc.Loading(
@@ -93,8 +93,7 @@ from Tsaraloha.LIPoutreContinue.plot import (
     plot_bm_envelopes,
     plot_support_moments,
     plot_load_on_influence_line,
-    plot_load_summary,
-    plot_output_full
+    plot_load_summary
 )
 
 # 5a. Enveloppe moment mi-travée de chaque travée

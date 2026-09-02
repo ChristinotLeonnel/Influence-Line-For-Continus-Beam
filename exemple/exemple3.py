@@ -1,10 +1,10 @@
 from Tsaraloha.LIPoutreContinue import Output as opt 
 import matplotlib.pyplot as plt 
 
-
 E = 3e9 
 I = 1e-6 
 E_t,I_t,L_t, pas_t = [], [], [20,25,20], 1
+
 for i in L_t: 
     E_t.append(E)
     I_t.append(I)

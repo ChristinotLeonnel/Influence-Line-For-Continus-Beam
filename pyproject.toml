@@ -19,22 +19,87 @@ keywords = [
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: C++",
     "Topic :: Scientific/Engineering",
     "Intended Audience :: Science/Research",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
 ]
+
+# Le coeur (Tsaraloha.LIPoutreContinue) n'a AUCUNE dépendance externe —
+# seul le module optionnel `Tsaraloha.LIPoutreContinue.plot` (visualisation
+# matplotlib) en a besoin. On les déclare en extra plutôt qu'en dépendance
+# dure : `pip install Tsaraloha` reste minimal, `pip install Tsaraloha[plot]`
+# ajoute matplotlib/numpy pour qui veut les graphiques.
+[project.optional-dependencies]
+plot = ["matplotlib>=3.5", "numpy>=1.20"]
+
+# [project.urls]
+# Homepage = "https://github.com/<votre-org>/<votre-repo>"
+# Source   = "https://github.com/<votre-org>/<votre-repo>"
+# Issues   = "https://github.com/<votre-org>/<votre-repo>/issues"
 
 [tool.scikit-build]
 # Le code source C++ vit à la racine (CMakeLists.txt), organisé par
 # sous-librairie (ex. LIPoutreContinue/include, LIPoutreContinue/src,
 # LIPoutreContinue/bindings). Le paquet Python pur (__init__.py, .pyi,
-# py.typed) vit dans python/Tsaraloha/ (racine du namespace) et
+# py.typed, plot.py) vit dans python/Tsaraloha/ (racine du namespace) et
 # python/Tsaraloha/LIPoutreContinue/ (sous-librairie), et est copié à côté
 # de l'extension compilée par le CMakeLists.txt lui-même (voir la section
 # "Module Python" dans CMakeLists.txt).
 wheel.packages = ["python/Tsaraloha"]
 cmake.build-type = "Release"
 
+# Contenu de la source distribution (sdist) — nécessaire pour que
+# `pip install Tsaraloha` puisse, en dernier recours (plateforme sans
+# wheel précompilée), reconstruire depuis les sources.
+sdist.include = [
+    "CMakeLists.txt",
+    "LIPoutreContinue/",
+    "include/",
+    "python/",
+]
+sdist.exclude = [
+    ".github/",
+    "*.rar",
+    "exemple/",
+    "google_veo_script.md",
+]
+
 [tool.scikit-build.cmake.define]
 TSARALOHA_BUILD_PYTHON = "ON"
 TSARALOHA_BUILD_EXAMPLES = "OFF"
+
+# =============================================================================
+#  cibuildwheel — construit une wheel précompilée par plateforme/version
+#  Python (Windows/Linux/macOS, x86_64 + arm64), pilotée par
+#  .github/workflows/wheels.yml. Voir https://cibuildwheel.pypa.io
+# =============================================================================
+[tool.cibuildwheel]
+# CPython 3.9 -> 3.13, 64 bits uniquement (pas de 32 bits, pas de PyPy —
+# la lib fait du calcul numérique lourd, PyPy n'apporte rien ici).
+build = "cp3{9,10,11,12,13}-*"
+skip = ["*-win32", "*-manylinux_i686", "*-musllinux*", "pp*"]
+build-verbosity = 1
+
+# CMAKE_CXX_STANDARD 20 requiert un compilateur récent : les images
+# manylinux2014 par défaut (GCC ~10) ne suffisent pas -> manylinux_2_28
+# (GCC 12+, AlmaLinux 8 based) est nécessaire côté Linux.
+[tool.cibuildwheel.linux]
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
+
+[tool.cibuildwheel.macos]
+# macOS 11 minimum : suffisant pour C++20 avec Clang (Xcode récent sur les
+# runners GitHub Actions).
+environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }
+
+[[tool.cibuildwheel.overrides]]
+select = "*"
+inherit.test-command = "append"
+# Test fumée après build : le module s'importe et un calcul minimal tourne.
+# (module coeur uniquement — pas le suffixe [plot], gardé hors CI wheels
+# pour ne pas dépendre de matplotlib/numpy à la compilation)
+test-command = "python -c \"import Tsaraloha.LIPoutreContinue as m; o = m.Output(E=[210e9], I=[8e-4], L=[6.0], steps=1.0, root=''); o.compute(); print('OK', len(o.X))\""
