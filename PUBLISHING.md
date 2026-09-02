@@ -69,18 +69,9 @@ pip install Tsaraloha
 python -c "import Tsaraloha.LIPoutreContinue as m; print(m.__file__)"
 ```
 
-fonctionne sur n'importe quel PC Windows/Linux/macOS, sans compilateur
-C++ ni CMake installé — exactement comme `pip install numpy`.
-
-Pour la visualisation matplotlib (`Tsaraloha.LIPoutreContinue.plot`),
-les utilisateurs installent l'extra dédié :
-
-```bash
-pip install "Tsaraloha[plot]"
-```
-
-(matplotlib/numpy ne sont pas des dépendances dures du paquet — seul
-`plot.py` en a besoin, et il n'est jamais importé automatiquement.)
+fonctionne sur n'importe quel PC Windows, sans compilateur C++ ni CMake
+installé — exactement comme `pip install numpy`. Les dépendances
+(`matplotlib`, `numpy`) sont installées automatiquement.
 
 ## 5) Tester sans publier (recommandé avant le premier vrai tag)
 
