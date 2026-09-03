@@ -216,8 +216,6 @@ Position1D Loading::PluralPointLoad(const std::vector<double> &intensity,
     val = 0;
     for (auto &I : intensity) {
       size_t alpha = MetersToPosition(LengthSuccessive[compteur] + first_wall);
-      std::cout << alpha << " ==> " << LengthSuccessive[compteur] + first_wall
-                << std::endl;
       // Ignorer les charges hors de la poutre (sentinelle)
       if (alpha < POSITION.size())
         val += OnePointLoad(I, span, section, alpha);

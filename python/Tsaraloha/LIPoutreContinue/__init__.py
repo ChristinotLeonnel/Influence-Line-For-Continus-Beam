@@ -139,7 +139,7 @@ except ImportError as _exc:  # pragma: no cover
 
 from . import _validation as _v
 
-__version__ = "1.0.4"
+__version__ = "1.0.5"
 
 # =============================================================================
 #  API publique.

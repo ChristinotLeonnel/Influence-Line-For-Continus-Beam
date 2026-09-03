@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "Tsaraloha"
-version = "1.0.4"
+version = "1.0.5"
 description = "Tsaraloha : librairie chapeau regroupant plusieurs sous-librairies de calcul. Sous-librairie actuelle : LIPoutreContinue, analyse structurelle de poutres continues (lignes d'influence, enveloppes de charge, isostatique/hyperstatique)"
 readme = "README.md"
 requires-python = ">=3.9"
