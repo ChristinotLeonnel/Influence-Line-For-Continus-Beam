@@ -288,14 +288,60 @@ vérifications effectuées.
 ```cpp
 #include <LIPoutreContinue/StructuralAnalysis.h>
 
-std::vector<double> E{210e9, 210e9}, I{8e-4, 8e-4}, L{10, 10};
-double steps = 1.0;
+// ── Poutre isostatique (1 travée) ─────────────────────────────────────────
+Isostatique beam(30e9, 1.2e-3, 10.0, 0.5);  // E, I, L, steps
+std::vector<double> LI_M  = beam.Eq_BendingMoment(5.0);   // L.I. du moment en x=5 m
+std::vector<double> LI_V  = beam.Eq_ShearForce(5.0, false); // L.I. de V
+std::vector<double> LI_w  = beam.Eq_Deflection(5.0);
+auto BM_all = beam.BendingMoment();  // [section][alpha] — toutes sections
 
-Output out(E, I, L, steps, "/chemin/de/sortie");
-out.compute();                 // résultats en RAM, rien sur disque
-// ... utiliser out.BM, out.SF, out.Def, out.Rot, out.X, etc.
-out.exportAll();                // optionnel : écrit le JSON
+// ── Poutre continue hyperstatique (3 travées) ─────────────────────────────
+std::vector<double> E{30e9, 30e9, 30e9};
+std::vector<double> I{1.2e-3, 1.8e-3, 1.2e-3};
+std::vector<double> L{10.0, 14.0, 10.0};
+double steps = 0.5;
+
+Hyperstatique hyp(E, I, L, steps);
+auto BM  = hyp.BendingMoments();         // [travee][section][alpha]
+auto SF  = hyp.ShearForce();
+auto Def = hyp.Deflection();
+auto Rot = hyp.Rotation();
+auto X   = hyp.pointsXCoordinates(hyp.SpanNodePositions); // abscisses globales
+// Moments sur appuis intermédiaires : hyp.SupportMoment[appui][alpha]
+
+// Recherche du maximum global (travee, section, alpha, valeur)
+Position3D maxBM = findMaxAbsoluteValue3D(BM);
+
+// ── Output : calcul complet + enveloppes + export JSON (optionnel) ─────────
+Output out(E, I, L, steps, "chemin/de/sortie");  // root="" pour ne rien écrire
+out.compute();   // résultats en RAM : out.BM, out.SF, out.Def, out.Rot, out.X
+// Maxima disponibles directement :
+//   out.BendingMomentMaxPositions, out.ShearForceMaxPositions, ...
+
+// Définition des charges (struct load { Intensity, Length, name })
+load convoi;
+convoi.Intensity = {70.0, 130.0, 130.0};  // kN par essieu
+convoi.Length    = {0.0, 1.8, 1.4};       // distances entre essieux [m]
+convoi.name      = "Convoi-Lourd";
+
+load udl;
+udl.Intensity = {12.0};          // kN/m
+udl.Length    = {0.0, 6.0};     // [depart, longueur] en m
+udl.name      = "UDL";
+
+out.setLoads({convoi}, {udl});
+out.computeLoadEnvelopes();   // enveloppes en RAM
+// out.BendingMomentGeneralLoadEnvelope, out.BendingMomentCriticalLoadEnvelope, ...
+
+out.exportAll();   // optionnel : écrit tout en JSON dans chemin/de/sortie/
 ```
+
+> 📁 **Exemples détaillés** (dans [`LIPoutreContinue/examples/`](LIPoutreContinue/examples/)) :
+> - [`ex01_isostatique.cpp`](LIPoutreContinue/examples/ex01_isostatique.cpp) — L.I. d'une travée simple
+> - [`ex02_hyperstatique.cpp`](LIPoutreContinue/examples/ex02_hyperstatique.cpp) — poutre 3 travées, moments sur appuis, maxima
+> - [`ex03_output_enveloppes.cpp`](LIPoutreContinue/examples/ex03_output_enveloppes.cpp) — Output complet avec enveloppes de charge
+
+
 
 ## Build depuis les sources
 
@@ -323,6 +369,7 @@ Tsaraloha/
 ├── LIPoutreContinue/                  # sous-librairie : LIPoutreContinue
 │   ├── include/LIPoutreContinue/      # headers publics de la lib C++
 │   ├── src/                           # implémentation C++
+│   ├── examples/                      # exemples C++ standalone (TSARALOHA_BUILD_EXAMPLES=ON)
 │   └── bindings/bindings.cpp          # bindings pybind11 (extension privée _LIPoutreContinue)
 └── python/Tsaraloha/
     ├── __init__.py                    # racine du namespace Tsaraloha

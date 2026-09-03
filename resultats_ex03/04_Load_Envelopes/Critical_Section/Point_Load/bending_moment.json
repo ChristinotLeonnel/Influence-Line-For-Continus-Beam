@@ -1,0 +1,18 @@
+{
+    "load": {
+        "Camion-A": {
+            "Position": 61.5,
+            "alpha": 104.0,
+            "value": 1535.7007800000003
+        },
+        "Semi-B": {
+            "Position": 102.0,
+            "alpha": 105.0,
+            "value": 2698.5231000000003
+        }
+    },
+    "maximum": 4234.2238800000005,
+    "position": 0.0,
+    "section": 58,
+    "span": 1
+}

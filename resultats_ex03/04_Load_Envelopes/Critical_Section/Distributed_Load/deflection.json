@@ -1,0 +1,13 @@
+{
+    "load": {
+        "Trottoir-10kNm": {
+            "Position": 48.5,
+            "alpha": 58.0,
+            "value": -0.00027270238331886574
+        }
+    },
+    "maximum": -0.00027270238331886574,
+    "position": 0.0,
+    "section": 55,
+    "span": 1
+}
