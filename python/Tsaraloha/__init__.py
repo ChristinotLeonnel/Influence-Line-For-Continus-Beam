@@ -24,6 +24,6 @@ Tsaraloha/<NomDeLaSousLib>/__init__.py.
 
 from __future__ import annotations
 
-__version__ = "1.0.0"
+__version__ = "1.0.2"
 
 __all__: list[str] = []
