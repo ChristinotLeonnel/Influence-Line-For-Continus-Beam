@@ -35,12 +35,12 @@ tag mal placé.
 ```bash
 # 1. Mettez à jour le numéro de version dans pyproject.toml (project.version)
 # 2. Committez, puis taguez :
-git commit -am "Version 1.0.0"
-git tag v1.0.0
+git commit -am "Version 1.0.2"
+git tag v1.0.2
 git push origin main --tags
 ```
 
-Le tag `v1.0.0` déclenche automatiquement `.github/workflows/wheels.yml` :
+Le tag `v1.0.2` déclenche automatiquement `.github/workflows/wheels.yml` :
 - construction des wheels Windows x64 pour Python 3.9 à 3.13,
 - construction du sdist,
 - publication sur PyPI (après validation manuelle si vous avez activé

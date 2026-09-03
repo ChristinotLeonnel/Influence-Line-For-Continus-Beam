@@ -20,7 +20,7 @@ import Tsaraloha.LIPoutreContinue as lipc
 # ── 1. Définition de la structure ─────────────────────────────────────────────
 E_val   = 32e9                           # Béton C32/40 [Pa]
 I_val   = 0.40 * 0.75**3 / 12           # Section rectangulaire 40×75 cm [m⁴]
-L_spans = [15.0, 20.0]                   # Deux travées [m]
+L_spans = [25.0, 50.0]                   # Deux travées [m]
 steps   = 0.5                            # Pas de 50 cm
 
 n = len(L_spans)
@@ -41,13 +41,13 @@ print(f"  Tranchant max : {sf_max['val']:+.4f} kN    (travée {sf_max['i']}, sec
 
 # ── 3. Définition des charges mobiles ─────────────────────────────────────────
 # Convoi 1 : camion 2 essieux (60 kN + 120 kN, entraxe 2.5 m)
-camion_A = lipc.Load(intensity=[60.0, 120.0], length=[0.0, 2.5], name="Camion-A")
+camion_A = lipc.Load(intensity=[60.0, 120.0], length=[10.0, 2.5], name="Camion-A")
 
 # Convoi 2 : semi-remorque 3 essieux (60 / 140 / 140 kN)
-semi_B   = lipc.Load(intensity=[60.0, 140.0, 140.0], length=[0.0, 2.0, 1.4], name="Semi-B")
+semi_B   = lipc.Load(intensity=[60.0, 140.0, 140.0], length=[50.0, 2.0, 1.4], name="Semi-B")
 
 # Surcharge répartie : trottoir 10 kN/m sur 8 m
-trottoir = lipc.Load(intensity=[10.0], length=[0.0, 8.0], name="Trottoir-10kNm")
+trottoir = lipc.Load(intensity=[10.0], length=[20.0, 8.0], name="Trottoir-10kNm")
 
 # ── 4. Calcul des enveloppes ──────────────────────────────────────────────────
 out.set_loads(point_loads=[camion_A, semi_B], distrib_loads=[trottoir])

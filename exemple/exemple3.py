@@ -1,4 +1,6 @@
 from Tsaraloha.LIPoutreContinue import Output as opt 
+from Tsaraloha.LIPoutreContinue import report as rop 
+
 import matplotlib.pyplot as plt 
 
 E = 3e9 
