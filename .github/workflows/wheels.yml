@@ -1,18 +1,25 @@
 # =============================================================================
-#  wheels.yml — Build & publish Tsaraloha (Windows uniquement)
+#  wheels.yml — Build & publish Tsaraloha (Windows C++ + Pure Python)
 #
-#  1) build_wheels   : compile une wheel précompilée Windows x64 par version
-#                       Python via cibuildwheel.
-#  2) build_sdist    : construit la source distribution (.tar.gz), utilisée
-#                       en secours si l'utilisateur compile depuis les sources.
-#  3) publish_pypi   : ne s'exécute QUE sur un tag "v*" (ex. v1.0.0) et
-#                       publie tout sur PyPI via Trusted Publishing (OIDC,
-#                       aucun secret/token à stocker dans le repo).
+#  1) build_wheels      : compile une wheel précompilée Windows x64 par version
+#                          Python via cibuildwheel.
+#  2) build_pure_wheel  : construit une wheel pure Python (py3-none-any) pour
+#                          les plateformes sans wheel C++ (Android/PyDroid,
+#                          Linux ARM, macOS ARM...).
+#  3) build_sdist       : construit la source distribution (.tar.gz), utilisée
+#                          en secours si l'utilisateur compile depuis les sources.
+#  4) publish_pypi      : ne s'exécute QUE sur un tag "v*" (ex. v1.1.0) et
+#                          publie tout sur PyPI via Trusted Publishing (OIDC,
+#                          aucun secret/token à stocker dans le repo).
 #
 #  Déclenchement :
 #    - push d'un tag "v*"        -> build + publish sur PyPI
 #    - déclenchement manuel      -> build seul (pour tester sans publier)
 #    - pull_request               -> build seul (validation avant merge)
+#
+#  Stratégie pip :
+#    - Windows x64 : pip choisit la wheel C++ (plus rapide)
+#    - Autres (Android, Linux, macOS) : pip choisit py3-none-any (fallback Python)
 # =============================================================================
 name: Build & publish wheels
 
@@ -45,7 +52,44 @@ jobs:
           path: ./wheelhouse/*.whl
 
   # ---------------------------------------------------------------------------
-  # 2) Source distribution (secours : compilation depuis les sources)
+  # 2) Wheel pure Python (py3-none-any) — fallback universel
+  # ---------------------------------------------------------------------------
+  build_pure_wheel:
+    name: Pure Python wheel
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build pure Python wheel
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python setup_pure.py bdist_wheel --python-tag py3
+          ls dist/
+
+      - name: Smoke test pure wheel
+        run: |
+          pip install dist/*.whl
+          python -c "
+          import Tsaraloha.LIPoutreContinue as lipc
+          assert lipc._BACKEND == 'python', f'Expected python backend, got {lipc._BACKEND}'
+          o = lipc.Output(E=[210e9], I=[8e-4], L=[6.0], steps=1.0)
+          o.compute()
+          assert len(o.X) > 0, 'No nodes computed'
+          print('Pure Python wheel OK:', lipc._BACKEND, 'nodes:', len(o.X))
+          "
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pure-wheel
+          path: dist/*.whl
+
+  # ---------------------------------------------------------------------------
+  # 3) Source distribution (secours : compilation depuis les sources)
   # ---------------------------------------------------------------------------
   build_sdist:
     name: Source distribution
@@ -68,13 +112,15 @@ jobs:
           path: dist/*.tar.gz
 
   # ---------------------------------------------------------------------------
-  # 3) Publication PyPI — uniquement sur un tag "vX.Y.Z"
+  # ---------------------------------------------------------------------------
+  # 4) Publication PyPI — uniquement sur un tag "vX.Y.Z"
   # ---------------------------------------------------------------------------
   publish_pypi:
     name: Publier sur PyPI
-    needs: [build_wheels, build_sdist]
+    needs: [build_wheels, build_pure_wheel, build_sdist]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
+    continue-on-error: true
     environment:
       name: pypi
       url: https://pypi.org/p/Tsaraloha
@@ -82,19 +128,51 @@ jobs:
       id-token: write   # requis par le Trusted Publishing (OIDC), pas de token à gérer
 
     steps:
-      - name: Récupérer les wheels + le sdist
+      - name: Récupérer les wheels C++ Windows
         uses: actions/download-artifact@v4
         with:
-          pattern: wheels-*
+          name: wheels-windows
           path: dist
-          merge-multiple: true
 
-      - uses: actions/download-artifact@v4
+      - name: Récupérer la wheel pure Python
+        uses: actions/download-artifact@v4
+        with:
+          name: pure-wheel
+          path: dist
+
+      - name: Récupérer le sdist
+        uses: actions/download-artifact@v4
         with:
           name: sdist
           path: dist
 
+      - name: Lister les fichiers à publier
+        run: ls -la dist/
+
       - name: Publier sur PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        # Pas de "password:" / "api-token:" -> repose entièrement sur le
-        # Trusted Publishing configuré côté pypi.org.
+
+  # ---------------------------------------------------------------------------
+  # 5) GitHub Release — crée la release et attache tous les .whl et .tar.gz
+  # ---------------------------------------------------------------------------
+  github_release:
+    name: Créer la Release GitHub
+    needs: [build_wheels, build_pure_wheel, build_sdist]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Télécharger tous les artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-release
+          merge-multiple: true
+
+      - name: Créer la Release GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-release/*
+          generate_release_notes: true
+

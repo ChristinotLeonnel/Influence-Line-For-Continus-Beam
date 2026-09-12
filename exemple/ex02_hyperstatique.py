@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import Tsaraloha.LIPoutreContinue as lipc
 
 # ── 1. Géométrie et matériaux ──────────────────────────────────────────────────
-L_spans = [12.0, 16.0, 12.0]                  # Longueurs des travées [m]
+L_spans = [0, 25 , 0]                  # Longueurs des travées [m]
 E_val   = 35e9                                  # Béton HP 35 GPa
 I_rive  = 0.35 * 0.70**3 / 12                  # Inertie travées de rive [m⁴]
 I_cent  = 0.40 * 0.80**3 / 12                  # Inertie travée centrale [m⁴]

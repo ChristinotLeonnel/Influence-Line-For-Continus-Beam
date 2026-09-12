@@ -1,19 +1,3 @@
-// =============================================================================
-//  PLACEHOLDER — Hyperstatique.cpp
-// =============================================================================
-//  Ce fichier n'a pas été transmis dans la conversation (contenu manquant
-//  côté upload). Aucune modification n'est nécessaire dessus : c'est une
-//  classe de calcul pur (pas d'I/O disque), donc il se glisse tel quel ici.
-//
-//  ACTION REQUISE : remplace ce fichier par ton Hyperstatique.cpp original,
-//  en ne changeant que la ligne d'include en haut du fichier :
-//
-//      #include "Hyperstatique.h"
-//  devient
-//      #include "LIPoutreContinue/core/Hyperstatique.h"
-//
-//  Rien d'autre à changer.
-// =============================================================================
 #include "LIPoutreContinue/core/Hyperstatique.h"
 #include "LIPoutreContinue/core/Isostatique.h"
 #include "LIPoutreContinue/Utils.h"

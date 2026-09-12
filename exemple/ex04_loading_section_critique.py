@@ -16,7 +16,7 @@ import Tsaraloha.LIPoutreContinue as lipc
 
 
 # ── 1. Construction du modèle via Hyperstatique ────────────────────────────────
-L_spans = [8.70, 0, 19.30, 17.8] 
+L_spans = [8.70, 19.30, 17.8] 
 E_val   = 30e9
 I_val   = 0.35 * 0.65**3 / 12
 steps   = 0.5

@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "Tsaraloha"
-version = "1.0.5"
+version = "1.1.0"
 description = "Tsaraloha : librairie chapeau regroupant plusieurs sous-librairies de calcul. Sous-librairie actuelle : LIPoutreContinue, analyse structurelle de poutres continues (lignes d'influence, enveloppes de charge, isostatique/hyperstatique)"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -23,15 +23,24 @@ classifiers = [
     "Programming Language :: C++",
     "Topic :: Scientific/Engineering",
     "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
     "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
 ]
 
-dependencies = ["matplotlib>=3.5", "numpy>=1.20"]
+dependencies = ["numpy>=1.20"]
+
+[project.optional-dependencies]
+plot = ["matplotlib>=3.5"]
+report = ["weasyprint"]
+all = ["matplotlib>=3.5", "weasyprint"]
+
 
 # [project.urls]
-# Homepage = "https://github.com/<votre-org>/<votre-repo>"
-# Source   = "https://github.com/<votre-org>/<votre-repo>"
-# Issues   = "https://github.com/<votre-org>/<votre-repo>/issues"
+# Homepage = "https://github.com/ChristinotLeonnel/Influence-Line-For-Continus-Beam"
+# Source   = "https://github.com/ChristinotLeonnel/Influence-Line-For-Continus-Beam"
+# Issues   = "https://github.com/ChristinotLeonnel/Influence-Line-For-Continus-Beam/issues"
 
 [tool.scikit-build]
 # Le code source C++ vit à la racine (CMakeLists.txt), organisé par

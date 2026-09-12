@@ -107,39 +107,18 @@ from __future__ import annotations
 
 import difflib
 
-# =============================================================================
-#  Import de l'extension compilée — avec message d'erreur explicite si le
-#  module n'a pas été construit (cas fréquent : on a lancé `python` depuis
-#  les sources sans avoir fait `pip install .` ou `cmake --build`).
-# =============================================================================
+# Try importing compiled C++ extension, fallback to pure-Python
 try:
     from . import _LIPoutreContinue as _core
-except ImportError as _exc:  # pragma: no cover
-    raise ImportError(
-        "Impossible d'importer l'extension compilée "
-        "'Tsaraloha.LIPoutreContinue._LIPoutreContinue'.\n"
-        "\n"
-        "Causes les plus fréquentes, dans l'ordre à vérifier :\n"
-        "  1. La librairie n'a pas été compilée du tout.\n"
-        "     -> Depuis la racine du projet (là où se trouve pyproject.toml) :\n"
-        "            pip install .\n"
-        "        ou, pour une compilation manuelle :\n"
-        "            cmake -B build && cmake --build build --config Release -j\n"
-        "            export PYTHONPATH=build/python   # (Linux/macOS)\n"
-        "  2. Vous exécutez un interpréteur Python différent de celui utilisé\n"
-        "     pour la compilation (versions majeures/mineures incompatibles\n"
-        "     entre l'extension .so/.pyd et l'interpréteur courant).\n"
-        f"     -> Interpréteur courant : {__import__('sys').executable}\n"
-        "  3. Le répertoire courant masque le paquet installé (un dossier\n"
-        "     local `Tsaraloha/` sans l'extension compilée passe avant le\n"
-        "     paquet installé dans site-packages).\n"
-        "\n"
-        f"Erreur d'origine ({type(_exc).__name__}) : {_exc}"
-    ) from _exc
+    _BACKEND = "cpp"
+except ImportError:
+    from . import _core_python as _core
+    _BACKEND = "python"
+
 
 from . import _validation as _v
 
-__version__ = "1.0.5"
+__version__ = "1.1.0"
 
 # =============================================================================
 #  API publique.
@@ -556,6 +535,8 @@ class Output(_RawOutput):
                 }
                 for l in self._user_distrib_loads
             ]
+
+        return model
 
     def generate_calculation_note(
         self,

@@ -38,16 +38,32 @@ Usage rapide
     >>> plot_output_full(out)
 """
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Tuple
-
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-import matplotlib.gridspec as gridspec
-from matplotlib.figure import Figure
-from matplotlib.axes import Axes
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
+
+try:
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+    import matplotlib.gridspec as gridspec
+    from matplotlib.figure import Figure
+    from matplotlib.axes import Axes
+    _HAS_MATPLOTLIB = True
+except ImportError:
+    _HAS_MATPLOTLIB = False
+    plt = None
+    mpatches = None
+    gridspec = None
+    Figure = Any
+    Axes = Any
+
+
+def _require_matplotlib() -> None:
+    if not _HAS_MATPLOTLIB:
+        raise ImportError(
+            "Le module 'matplotlib' est requis pour l'utilisation de `plot`. "
+            "Installez-le avec : pip install matplotlib"
+        )
+
 
 if TYPE_CHECKING:
     from Tsaraloha.LIPoutreContinue import (
