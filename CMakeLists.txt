@@ -100,6 +100,7 @@ add_library(LIPoutreContinue_core STATIC
     LIPoutreContinue/src/io/UpdatePositions.cpp
     LIPoutreContinue/src/loading/Input.cpp
     LIPoutreContinue/src/loading/Loading.cpp
+    LIPoutreContinue/src/loading/MovingLoadSearch.cpp
 )
 
 target_include_directories(LIPoutreContinue_core PUBLIC

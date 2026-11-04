@@ -14,23 +14,6 @@ namespace {
 
 constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
 
-// Abscisses relatives des essieux (count = n) ou des bornes de tronçons
-// (count = n + 1) : d0 = length[0], d_i = d_{i-1} + length[i].
-// UNE SEULE convention pour tous les calculs (défaut N4).
-std::vector<double> cumulativeOffsets(const std::vector<double>& length, size_t count, const char* what)
-{
-    if (count == 0) return {};
-    if (length.size() < count)
-        throw std::invalid_argument(std::string("Loading: charge ") + what + " — 'length' contient "
-            + std::to_string(length.size()) + " valeur(s), " + std::to_string(count) + " attendue(s).");
-    std::vector<double> d(count);
-    d[0] = length[0];
-    for (size_t i = 1; i < count; ++i) d[i] = d[i - 1] + length[i];
-    for (double v : d)
-        if (!std::isfinite(v)) throw std::invalid_argument("Loading: 'length' contient une valeur non finie.");
-    return d;
-}
-
 // Renomme les doublons ("Camion", "Camion #2", …) pour que chaque charge ait
 // sa propre entrée dans les détails de résultat.
 std::vector<std::string> uniqueNames(const std::vector<load>& loads, std::vector<std::string> taken = {})
@@ -48,35 +31,6 @@ std::vector<std::string> uniqueNames(const std::vector<load>& loads, std::vector
 }
 
 } // namespace
-
-// =============================================================================
-//  Line — interpolant linéaire par morceaux, nul hors de [t.front(), t.back()]
-// =============================================================================
-double Loading::Line::right(double q) const
-{
-    if (q < t.front() || q >= t.back()) return 0.0;
-    const size_t j = static_cast<size_t>(std::upper_bound(t.begin(), t.end(), q) - t.begin()) - 1; // t_j <= q < t_{j+1}
-    const double h = t[j + 1] - t[j];
-    return y[j] + (y[j + 1] - y[j]) * (q - t[j]) / h;
-}
-
-double Loading::Line::left(double q) const
-{
-    if (q <= t.front() || q > t.back()) return 0.0;
-    const size_t j = static_cast<size_t>(std::lower_bound(t.begin(), t.end(), q) - t.begin()); // t_{j-1} < q <= t_j
-    const double h = t[j] - t[j - 1];
-    return y[j - 1] + (y[j] - y[j - 1]) * (q - t[j - 1]) / h;
-}
-
-double Loading::Line::integral(double q) const
-{
-    if (q <= t.front()) return 0.0;
-    if (q >= t.back()) return C.back();
-    const size_t j = static_cast<size_t>(std::upper_bound(t.begin(), t.end(), q) - t.begin()) - 1;
-    const double h = t[j + 1] - t[j];
-    const double fq = y[j] + (y[j + 1] - y[j]) * (q - t[j]) / h;
-    return C[j] + 0.5 * (q - t[j]) * (y[j] + fq);
-}
 
 // =============================================================================
 //  Construction
@@ -170,108 +124,19 @@ size_t Loading::nearestNode(double x) const
 // valeur de plus que la grille (saut unité au droit de la section) : on
 // duplique alors l'abscisse de la section (défaut N7 — avant, les ordonnées à
 // droite de la section étaient décalées d'un nœud).
-Loading::Line Loading::makeLine(size_t span, size_t section) const
+lipc::InfluenceLine Loading::makeLine(size_t span, size_t section) const
 {
     const size_t g = globalIndex(span, section);
     const auto& row = (*curves_)[span][section];
-    Line line;
-    line.t = POSITION;
+    std::vector<double> t = POSITION;
     if (row.size() == POSITION.size() + 1)
-        line.t.insert(line.t.begin() + static_cast<std::ptrdiff_t>(g) + 1, POSITION[g]);
+        t.insert(t.begin() + static_cast<std::ptrdiff_t>(g) + 1, POSITION[g]);
     else if (row.size() != POSITION.size())
         throw std::invalid_argument("Loading: ligne d'influence de taille " + std::to_string(row.size())
             + " incompatible avec " + std::to_string(POSITION.size()) + " abscisses.");
-
-    line.y.resize(row.size());
-    for (size_t i = 0; i < row.size(); ++i) line.y[i] = row[i] * scale_;
-
-    line.C.assign(line.t.size(), 0.0);
-    for (size_t i = 1; i < line.t.size(); ++i)
-        line.C[i] = line.C[i - 1] + 0.5 * (line.t[i] - line.t[i - 1]) * (line.y[i] + line.y[i - 1]);
-    return line;
-}
-
-// =============================================================================
-//  Recherche exacte — convoi de charges ponctuelles
-// =============================================================================
-Loading::Extreme Loading::pointExtreme(const Line& line, const load& l) const
-{
-    Extreme e;
-    const size_t n = l.Intensity.size();
-    if (n == 0) return e;
-    const auto d = cumulativeOffsets(l.Length, n, "ponctuelle");
-
-    // g(p) est linéaire par morceaux : extrema en p = t_j − d_i (essieu i sur
-    // le nœud j), limites à gauche et à droite. L'essieu « porteur » est posé
-    // exactement sur t_j pour ne pas perdre un saut à l'arrondi près.
-    for (size_t j = 0; j < line.t.size(); ++j) {
-        const double tj = line.t[j];
-        for (size_t i = 0; i < n; ++i) {
-            const double p = tj - d[i];
-            for (int side = 0; side < 2; ++side) {
-                double v = 0.0;
-                for (size_t k = 0; k < n; ++k) {
-                    const double q = (k == i) ? tj : p + d[k];
-                    v += l.Intensity[k] * (side == 0 ? line.left(q) : line.right(q));
-                }
-                if (v > e.max) { e.max = v; e.maxOrigin = p; e.hasMax = true; }
-                if (v < e.min) { e.min = v; e.minOrigin = p; e.hasMin = true; }
-            }
-        }
-    }
-    return e;
-}
-
-// =============================================================================
-//  Recherche exacte — charge répartie (simple ou plurielle)
-// =============================================================================
-Loading::Extreme Loading::distribExtreme(const Line& line, const load& l) const
-{
-    Extreme e;
-    const size_t n = l.Intensity.size();
-    if (n == 0) return e;
-    const auto c = cumulativeOffsets(l.Length, n + 1, "répartie");
-
-    auto G = [&](double p) {
-        double v = 0.0;
-        for (size_t k = 0; k < n; ++k)
-            v += l.Intensity[k] * (line.integral(p + c[k + 1]) - line.integral(p + c[k]));
-        return v;
-    };
-    auto dG = [&](double p) {   // à l'intérieur d'un intervalle (f continue)
-        double v = 0.0;
-        for (size_t k = 0; k < n; ++k)
-            v += l.Intensity[k] * (line.right(p + c[k + 1]) - line.right(p + c[k]));
-        return v;
-    };
-    auto consider = [&](double p) {
-        const double v = G(p);
-        if (v > e.max) { e.max = v; e.maxOrigin = p; e.hasMax = true; }
-        if (v < e.min) { e.min = v; e.minOrigin = p; e.hasMin = true; }
-    };
-
-    // Points de rupture : une borne de tronçon sur un nœud.
-    std::vector<double> cand;
-    cand.reserve(line.t.size() * (n + 1));
-    for (double tj : line.t)
-        for (double cm : c) cand.push_back(tj - cm);
-    std::sort(cand.begin(), cand.end());
-    cand.erase(std::unique(cand.begin(), cand.end()), cand.end());
-
-    for (size_t i = 0; i < cand.size(); ++i) {
-        consider(cand[i]);
-        if (i + 1 == cand.size()) break;
-        // Sur ]p_a, p_b[, G' est affine : on l'échantillonne strictement à
-        // l'intérieur et on cherche son zéro (extremum intérieur de G).
-        const double pa = cand[i], pb = cand[i + 1], w = pb - pa;
-        if (!(w > 0.0)) continue;
-        const double u1 = pa + 0.25 * w, u2 = pa + 0.75 * w;
-        const double g1 = dG(u1), g2 = dG(u2);
-        if (g1 == g2) continue;
-        const double root = u1 - g1 * (u2 - u1) / (g2 - g1);
-        if (root > pa && root < pb) consider(root);
-    }
-    return e;
+    std::vector<double> y(row.size());
+    for (size_t i = 0; i < row.size(); ++i) y[i] = row[i] * scale_;
+    return lipc::InfluenceLine(std::move(t), std::move(y));
 }
 
 // =============================================================================
@@ -296,15 +161,15 @@ void Loading::computeAll()
             env->min[s].assign(nSec, 0.0);
         }
         for (size_t sec = 0; sec < nSec; ++sec) {
-            const Line line = makeLine(s, sec);
+            const lipc::InfluenceLine line = makeLine(s, sec);
             double pmax = 0, pmin = 0, rmax = 0, rmin = 0;
             for (const auto& l : Point_LOAD) {
-                pointExt_[s][sec].push_back(pointExtreme(line, l));
+                pointExt_[s][sec].push_back(lipc::pointLoadExtreme(line, l));
                 pmax += pointExt_[s][sec].back().max;
                 pmin += pointExt_[s][sec].back().min;
             }
             for (const auto& l : Rectangulare_LOAD) {
-                rectExt_[s][sec].push_back(distribExtreme(line, l));
+                rectExt_[s][sec].push_back(lipc::distributedLoadExtreme(line, l));
                 rmax += rectExt_[s][sec].back().max;
                 rmin += rectExt_[s][sec].back().min;
             }
@@ -409,7 +274,7 @@ Position1D Loading::PluralPointLoad(const std::vector<double>& intensity, const 
                                     size_t span, size_t section)
 {
     load l{intensity, length, ""};
-    const Extreme e = pointExtreme(makeLine(span, section), l);
+    const Extreme e = lipc::pointLoadExtreme(makeLine(span, section), l);
     return toPosition1D(e, nearestNode(e.hasMax ? e.maxOrigin : kNaN), nearestNode(e.hasMin ? e.minOrigin : kNaN));
 }
 
@@ -418,7 +283,7 @@ double Loading::OneRectangularLoad(double intensity, size_t span, size_t section
     if (begin > end || end >= POSITION.size())
         throw std::out_of_range("Loading::OneRectangularLoad: il faut begin <= end < "
             + std::to_string(POSITION.size()) + ".");
-    const Line line = makeLine(span, section);
+    const lipc::InfluenceLine line = makeLine(span, section);
     // Intégrale exacte de l'interpolant entre les nœuds begin et end INCLUS
     // (défaut N6 : l'ancienne boucle `i < end` omettait le dernier intervalle).
     return intensity * (line.integral(POSITION[end]) - line.integral(POSITION[begin]));
@@ -428,7 +293,7 @@ Position1D Loading::PluralRectangularLoad(const std::vector<double>& intensity, 
                                           size_t span, size_t section)
 {
     load l{intensity, length, ""};
-    const Extreme e = distribExtreme(makeLine(span, section), l);
+    const Extreme e = lipc::distributedLoadExtreme(makeLine(span, section), l);
     return toPosition1D(e, nearestNode(e.hasMax ? e.maxOrigin : kNaN), nearestNode(e.hasMin ? e.minOrigin : kNaN));
 }
 

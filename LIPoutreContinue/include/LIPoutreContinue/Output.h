@@ -115,11 +115,31 @@ public:
     LoadEnvelope DeflectionCriticalLoadEnvelope;
     LoadEnvelope RotationCriticalLoadEnvelope;
 
+    // ── Réactions d'appui (version 2.0) ─────────────────────────────────────
+    // Lignes d'influence [appui][charge] (réaction positive vers le haut,
+    // charge unité vers le bas), disponibles après compute().
+    std::vector<std::vector<double>> SupportReaction;
+    Position2D SupportReactionMaxPositions {0, 0, 0.0};
+    // Enveloppes par appui (après computeLoadEnvelopes()) : span = indice
+    // d'appui, section_x = abscisse de l'appui. Unité : kN.
+    std::vector<LoadEnvelope> SupportReactionLoadEnvelopes;
+
+    // ── Enveloppes par section, le long de la poutre (version 2.0) ─────────
+    // [travée][section] ; E⁺ = max, E⁻ = min. Unités : kN·m, kN, m, rad.
+    struct SectionEnvelopes {
+        Loading::SectionEnvelope point, rect, combined;
+    };
+    SectionEnvelopes BendingMomentSectionEnvelopes, ShearForceSectionEnvelopes,
+                     DeflectionSectionEnvelopes, RotationSectionEnvelopes;
+
     // Chemins résolus — exposés pour que du code externe (une autre appli)
     // sache où lire/écrire sans redéfinir sa propre logique de chemins.
     ProjectPaths Paths;
 
 private:
+    void computeSupportReactions();
+    std::vector<LoadEnvelope> computeReactionEnvelopes() const;
+
     bool computed_ = false;
     bool loadEnvelopesComputed_ = false;
     bool hasUserLoads_ = false;

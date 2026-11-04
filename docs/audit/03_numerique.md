@@ -168,12 +168,27 @@ correction proposée.
 - Le cas de la travée unique et des 2 travées dont une nulle est accepté, mais
   le comportement n'est pas spécifié (aucun test).
 
+### N6b — Intégration O(h²) des lignes cubiques (ouvert)
+- **Statut :** limitation documentée, **non corrigée** en 2.0.
+- **Explication :** entre deux nœuds, les lignes d'influence des moments sur
+  appuis, des réactions, des flèches et des rotations sont des cubiques en la
+  position de la charge (termes ω′, ω″). La recherche 2.0 utilise
+  l'interpolant linéaire des valeurs nodales. Elle est exacte pour M et V
+  isostatiques, et d'erreur O(h²) sinon.
+- **Mesure :** réaction centrale de 2 × 10 m sous q uniforme : erreur relative de 2·10⁻³ (h = 1 m), 5·10⁻⁴ (h = 0,5 m), 1,25·10⁻⁴ (h = 0,25 m), soit un ordre 2,0 (test `test_reaction_envelope_udl_converges_quadratically`).
+- **Correction prévue :** dans une travée, chaque moment sur appui est une
+  combinaison linéaire de ω′(a) et ω″(a), avec des coefficients ne
+  dépendant que de la structure. En les exposant, on peut évaluer toute ligne
+  d'influence exactement en n'importe quelle position (interpolation
+  d'Hermite exacte ou quadrature de Gauss à 2 points par élément). C'est le
+  même chantier que le stockage O(S·N) (04 §2.1).
+
 ## 3. Points non couverts par la librairie actuelle
 
 Ce sont des fonctionnalités demandées qui n'existent pas encore. Il ne s'agit
 pas de défauts.
 
-- **Réactions d'appui :** aucune ligne d'influence n'est fournie. On peut les obtenir exactement à partir des moments sur appuis : `Rᵢ = R⁰ᵢ + (Mᵢ₋₁ − Mᵢ)/Lᵢ + (Mᵢ₊₁ − Mᵢ)/Lᵢ₊₁`.
-- **Contrôle d'équilibre** ΣR = ΣP : impossible sans réactions.
+- ~~**Réactions d'appui**~~ : **ajoutées en 2.0** (`support_reaction`, `support_reaction_envelopes`), vérifiées par l'équilibre ΣR = 1, ΣR·x = x et des formes fermées. Avant : aucune ligne d'influence n'était fournie. On peut les obtenir exactement à partir des moments sur appuis : `Rᵢ = R⁰ᵢ + (Mᵢ₋₁ − Mᵢ)/Lᵢ + (Mᵢ₊₁ − Mᵢ)/Lᵢ₊₁`.
+- ~~**Contrôle d'équilibre**~~ : testé en 2.0 (`tests/test_results.py`).
 - **Diagrammes pour un chargement fixe donné** (M(x), V(x), w(x) sous un cas de charge statique) : non disponibles. Seules les lignes d'influence et les enveloppes existent.
 - **Appuis élastiques, porte-à-faux, EI variable dans une travée :** non supportés. Les porte-à-faux sont fréquents en pratique.

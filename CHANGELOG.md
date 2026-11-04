@@ -23,6 +23,10 @@ sont vérifiées exactes à 10⁻¹⁵ par rapport à une résolution directe de
 - **Enveloppe « section critique ».** Elle est maintenant calculée à la section du maximum de la ligne d'influence, comme le dit la documentation, et non plus sur toute la travée.
 
 ### Ajouts
+- **Réactions d'appui** : lignes d'influence exactes `support_reaction` [appui][charge], déduites des moments sur appuis (ΣR = 1 vérifié), et enveloppes par appui `support_reaction_envelopes`. Exports `02_Influence_Lines/support_reaction.json` et `04_Load_Envelopes/support_reactions.json`.
+- **Courbes enveloppes** E⁺(x), E⁻(x) le long de la poutre, pour M, V, w et θ et pour chaque type de charge : `section_envelopes`, export `04_Load_Envelopes/envelope_curves.json`.
+- **Extrema des lignes d'influence** (max **et** min) repérés par leurs abscisses physiques `section_x` et `load_x` : `influence_line_extrema`.
+- Module de calcul `MovingLoadSearch` (C++, `lipc::`) : recherche exacte réutilisable sur toute ligne d'influence.
 - `load_delivery` / dict d'enveloppe : `max`, `min` (valeur, travée, section, `section_x`, détail par charge) et `section_x`.
 - `Position1D.position` : abscisse exacte de l'origine de la charge, ou NaN si l'extrême correspond à la charge absente.
 - `Loading.section_envelopes` : enveloppes E⁺ et E⁻ en chaque section ; `Loading.compute_at_section(span, section)` ; argument `scale`.

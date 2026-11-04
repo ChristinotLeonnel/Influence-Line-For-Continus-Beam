@@ -39,6 +39,7 @@
 // =============================================================================
 
 #include "LIPoutreContinue/loading/Input.h"
+#include "LIPoutreContinue/loading/MovingLoadSearch.h"
 #include "LIPoutreContinue/Utils.h"
 
 #include <string>
@@ -109,26 +110,11 @@ public:
 	};
 	SectionEnvelope PointEnvelope, RectangularEnvelope, CombinedEnvelope;
 
-	// Extrême d'une charge à une section.
-	struct Extreme {
-		double max = 0.0, maxOrigin = 0.0;
-		double min = 0.0, minOrigin = 0.0;
-		bool hasMax = false, hasMin = false;  // false : extrême = charge absente
-	};
+	// Extrême d'une charge à une section (voir MovingLoadSearch.h).
+	using Extreme = lipc::Extreme;
 
 private:
-	// Ligne d'influence d'une section : abscisses t (croissantes, doublons
-	// possibles aux discontinuités), ordonnées y, primitive C aux nœuds.
-	struct Line {
-		std::vector<double> t, y, C;
-		double left(double q) const;    // f(q⁻)
-		double right(double q) const;   // f(q⁺)
-		double integral(double q) const; // ∫_{-∞}^{q} f
-	};
-	Line makeLine(size_t span, size_t section) const;
-
-	Extreme pointExtreme(const Line& line, const load& l) const;
-	Extreme distribExtreme(const Line& line, const load& l) const;
+	lipc::InfluenceLine makeLine(size_t span, size_t section) const;
 
 	size_t nearestNode(double x) const;
 	size_t globalIndex(size_t span, size_t section) const;

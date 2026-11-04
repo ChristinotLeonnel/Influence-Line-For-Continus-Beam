@@ -235,12 +235,11 @@ inline void maximum_delivery(auto& data, json& file,
 }
 
 /**
- * Écrit les informations d'une enveloppe de charge dans un fichier JSON.
- *   { "maximum", "span", "section", "position", "load" }
+ * Sérialise une enveloppe de charge (load_delivery) en JSON :
+ *   { maximum, span, section, section_x, position, load, max{…}, min{…} }
+ * NaN (charge absente) n'est pas représentable en JSON : écrit `null`.
  */
-inline void loading_delivery(auto& data, json& file,
-                              std::filesystem::path Path, std::string name) {
-    // NaN (charge absente) n'est pas représentable en JSON : écrit `null`.
+inline json toJson(const load_delivery& data) {
     auto num = [](double v) { return std::isfinite(v) ? json(v) : json(nullptr); };
     auto loads = [&](const auto& m) {
         json out = json::object();
@@ -251,6 +250,7 @@ inline void loading_delivery(auto& data, json& file,
         }
         return out;
     };
+    json file;
     file["maximum"]   = data.maximum_value;
     file["span"]      = data.span;
     file["section"]   = data.section;
@@ -261,6 +261,13 @@ inline void loading_delivery(auto& data, json& file,
                     {"section_x", data.max_section_x}, {"load", loads(data.load_max)} };
     file["min"] = { {"value", data.min_value}, {"span", data.min_span}, {"section", data.min_section},
                     {"section_x", data.min_section_x}, {"load", loads(data.load_min)} };
+    return file;
+}
+
+/** Écrit une enveloppe de charge dans un fichier JSON (voir toJson). */
+inline void loading_delivery(const load_delivery& data, json& file,
+                              std::filesystem::path Path, std::string name) {
+    file = toJson(data);
     delivery(file, Path, name);
 }
 

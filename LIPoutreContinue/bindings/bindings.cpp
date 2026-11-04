@@ -843,6 +843,106 @@ out.compute_load_envelopes()
                                return DictConverter::toDict(
                                    s.impl.RotationCriticalLoadEnvelope);
                              })
+      // ── Version 2.0 : réactions, courbes enveloppes, extrema physiques ──
+      .def_property_readonly(
+          "support_reaction",
+          [](PyOutput &s) { return s.impl.SupportReaction; },
+          "Lignes d'influence des réactions d'appui [appui][charge] (charge "
+          "unité vers le bas, réaction positive vers le haut), sur la grille X.")
+      .def_property_readonly("support_reaction_max_positions",
+                             [](PyOutput &s) {
+                               return DictConverter::toDict(
+                                   s.impl.SupportReactionMaxPositions);
+                             })
+      .def_property_readonly(
+          "support_reaction_envelopes",
+          [](PyOutput &s) {
+            py::list out;
+            for (const auto &e : s.impl.SupportReactionLoadEnvelopes) {
+              py::dict d = DictConverter::toDict(e);
+              d["support"] = e.combinedLoad.span;
+              d["x"] = e.combinedLoad.section_x;
+              out.append(d);
+            }
+            return out;
+          },
+          "Enveloppes des réactions [kN], une entrée par appui : "
+          "{'support', 'x', 'point_load', 'rectangular_load', "
+          "'combined_load'} (chacune avec 'max' et 'min'). Après "
+          "compute_load_envelopes().")
+      .def_property_readonly(
+          "section_envelopes",
+          [](PyOutput &s) {
+            auto flat = [](const std::vector<std::vector<double>> &v) {
+              std::vector<double> o;
+              for (const auto &r : v) o.insert(o.end(), r.begin(), r.end());
+              return o;
+            };
+            auto cat = [&](const Loading::SectionEnvelope &c) {
+              py::dict d;
+              d["max"] = flat(c.max);
+              d["min"] = flat(c.min);
+              return d;
+            };
+            auto q = [&](const Output::SectionEnvelopes &e) {
+              py::dict d;
+              d["x"] = s.impl.X;
+              d["point_load"] = cat(e.point);
+              d["rectangular_load"] = cat(e.rect);
+              d["combined_load"] = cat(e.combined);
+              return d;
+            };
+            py::dict out;
+            out["bending_moment"] = q(s.impl.BendingMomentSectionEnvelopes);
+            out["shear_force"] = q(s.impl.ShearForceSectionEnvelopes);
+            out["deflection"] = q(s.impl.DeflectionSectionEnvelopes);
+            out["rotation"] = q(s.impl.RotationSectionEnvelopes);
+            return out;
+          },
+          "Courbes enveloppes E+(x) (max) et E-(x) (min) en chaque section, "
+          "alignées sur X : {grandeur: {'x', 'point_load'|'rectangular_load'|"
+          "'combined_load': {'max', 'min'}}}. Unités : kN·m, kN, m, rad.")
+      .def_property_readonly(
+          "influence_line_extrema",
+          [](PyOutput &s) {
+            // Extrema max ET min de chaque ligne d'influence, repérés par des
+            // abscisses physiques (section et position de la charge unité).
+            const auto &o = s.impl;
+            auto scan = [&](const std::vector<std::vector<std::vector<double>>> &T,
+                            bool shear) {
+              py::dict res;
+              bool init = false;
+              double vmax = 0, vmin = 0;
+              size_t imax[3] = {0, 0, 0}, imin[3] = {0, 0, 0};
+              for (size_t i = 0; i < T.size(); ++i)
+                for (size_t j = 0; j < T[i].size(); ++j)
+                  for (size_t k = 0; k < T[i][j].size(); ++k) {
+                    const double v = T[i][j][k];
+                    if (!init || v > vmax) { vmax = v; imax[0] = i; imax[1] = j; imax[2] = k; }
+                    if (!init || v < vmin) { vmin = v; imin[0] = i; imin[1] = j; imin[2] = k; }
+                    init = true;
+                  }
+              auto entry = [&](double v, const size_t *ix) {
+                py::dict d;
+                d["value"] = v;
+                d["span"] = ix[0];
+                d["section"] = ix[1];
+                d["section_x"] = o.NodeLengths[ix[0]] + o.SpanNodePositions[ix[0]][ix[1]];
+                d["load_x"] = shear ? o.ShearForceAllAbscissa[ix[0]][ix[1]][ix[2]] : o.X[ix[2]];
+                return d;
+              };
+              if (init) { res["max"] = entry(vmax, imax); res["min"] = entry(vmin, imin); }
+              return res;
+            };
+            py::dict out;
+            out["bending_moment"] = scan(o.BM, false);
+            out["shear_force"] = scan(o.SF, true);
+            out["deflection"] = scan(o.Def, false);
+            out["rotation"] = scan(o.Rot, false);
+            return out;
+          },
+          "Max et min de chaque ligne d'influence (charge unité de 1 N pour "
+          "w et θ), avec 'section_x' et 'load_x' en mètres.")
       .def_property_readonly(
           "paths", [](PyOutput &s) { return DictConverter::toDict(s.impl.Paths); })
       // ── Champs hérités de Hyperstatique ──────────────────────────────
