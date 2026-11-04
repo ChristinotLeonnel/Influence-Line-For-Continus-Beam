@@ -34,6 +34,12 @@ sont vérifiées exactes à 10⁻¹⁵ par rapport à une résolution directe de
 - Le JSON `04_Load_Envelopes/*` contient les blocs `max` et `min`. Les positions non définies sont écrites `null`.
 - Validation des entrées dans le cœur C++ (`steps > 0`, E·I > 0, tailles cohérentes).
 
+### Note de calcul (réécrite)
+- `Results.report(path)` : note HTML autonome (figures SVG), ou PDF via weasyprint. Sections : page de garde, structure, géométrie et matériaux, appuis, hypothèses, équations (Clapeyron, foyers, réactions), méthode et discrétisation, charges, lignes d'influence, enveloppes, positions critiques, réactions, **vérifications exécutées** (ΣR = 1, ΣR·x = x, Maxwell-Betti, continuité, flèche nulle aux appuis), étude de convergence optionnelle (`convergence=True`), conclusion et limites.
+- Toute valeur provient du moteur ou d'une vérification exécutée lors de la génération. La version, le pas, le nombre de nœuds et les données d'entrée sont reproduits.
+- Les mentions « RDM6 » sont supprimées : la note ne s'attribue plus à un logiciel tiers. Le PDF passe par un seul moteur (weasyprint) ; les solutions de repli Chromium et pdfkit sont supprimées.
+- `Output.generate_calculation_note()` / `generate_calculation_pdf()` sont conservées (`DeprecationWarning`) et délèguent au nouveau générateur. `logo_svg` et `curve_plotter` sont ignorés.
+
 ### Comportements modifiés
 - `Loading.one_point_load` lève `IndexError` hors de la grille, au lieu d'afficher un message et de renvoyer 0.
 - `Loading.one_rectangular_load(begin, end)` intègre jusqu'au nœud `end` **inclus**.

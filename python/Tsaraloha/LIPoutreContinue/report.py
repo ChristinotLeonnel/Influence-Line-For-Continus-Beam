@@ -1,904 +1,430 @@
 """
-report.py — Générateur de note de calcul style RDM6 pour Tsaraloha.LIPoutreContinue.
+report.py — Note de calcul de Tsaraloha.LIPoutreContinue.
 
-Ce module génère une note de calcul respectant la structure, la rigueur et le
-formalisme des rapports d'ingénierie RDM6 / RDM Flexion (IUT Le Mans) :
-  - Cartouche normalisé d'ingénierie RDM6 (Projet, Affaire, Auteur, Date)
-  - Schéma cinématique de la structure cotée avec nœuds (1, 2, ...) et symboles d'appuis
-  - Tableaux des nœuds, travées, caractéristiques mécaniques (E, Iz, S)
-  - Conditions aux limites (liaisons, degrés de liberté)
-  - Définition détaillée des cas de charges (forces nodales, convois, charges réparties)
-  - Synthèse des lignes d'influence et valeurs critiques
-  - Zone de diagrammes et courbes de lignes d'influence
-  - Enveloppes des sollicitations maximales (Mf, Ty, flèches, rotations)
+Produite à partir d'un objet :class:`~Tsaraloha.LIPoutreContinue.api.Results`
+(``res.report("note.html")``). Règles :
+
+* Toute valeur affichée provient du moteur de calcul ou d'une vérification
+  **exécutée au moment de la génération** (équilibre, réciprocité,
+  continuité, convergence optionnelle). Rien n'est saisi à la main.
+* Chaque résultat est traçable : version de la librairie, méthode, pas,
+  nombre de nœuds et données d'entrée complètes sont reproduits.
+* Sortie HTML autonome (figures SVG intégrées). PDF si ``path`` se termine
+  par ``.pdf`` : nécessite ``weasyprint`` (``pip install Tsaraloha[report]``).
 """
-
 from __future__ import annotations
 
 import datetime
-import os
+import html
+import io
+import math
+import warnings
 from pathlib import Path
-import shutil
-import subprocess
-import tempfile
-from typing import Any, Callable, Optional
+from typing import Optional, Union
+
+import numpy as np
+
+__all__ = ["generate_report", "run_checks", "generate_calculation_note", "generate_calculation_pdf"]
+
+_UNITS = {"M": "kN·m", "V": "kN", "w": "m", "theta": "rad"}
+_LABELS = {"M": "Moment fléchissant M", "V": "Effort tranchant V", "w": "Flèche w", "theta": "Rotation θ"}
+_KIND_LABELS = {"point": "Charges ponctuelles", "distributed": "Charges réparties", "combined": "Combinaison"}
 
 
-def _find_chromium() -> str | None:
-    """Recherche un exécutable Chromium (Edge ou Chrome) sur le système."""
-    candidates = [
-        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-        shutil.which("msedge"),
-        shutil.which("chrome"),
-        shutil.which("google-chrome"),
-        shutil.which("chromium"),
-    ]
-    for c in candidates:
-        if c and os.path.exists(c):
-            return c
-    return None
+def _e(s) -> str:
+    return html.escape(str(s))
 
 
-def html_to_pdf(html_content: str, pdf_path: str | Path) -> Path:
-    """
-    Convertit un contenu HTML en fichier PDF prêt pour l'impression A4.
-    Utilise automatiquement le moteur headless Chromium (Edge ou Chrome) présent
-    sur le système, ou WeasyPrint / Playwright / wkhtmltopdf si disponibles.
-    """
-    pdf_dest = Path(pdf_path).resolve()
-    pdf_dest.parent.mkdir(parents=True, exist_ok=True)
+def _num(v, digits=4) -> str:
+    if v is None or (isinstance(v, float) and not math.isfinite(v)):
+        return "—"
+    v = float(v)
+    if v == 0:
+        return "0"
+    if abs(v) >= 1e5 or abs(v) < 1e-3:
+        return f"{v:.{digits - 1}e}"
+    return f"{v:.{digits}g}" if abs(v) >= 1 else f"{v:.{digits}f}".rstrip("0").rstrip(".")
 
-    # 1. Essai avec WeasyPrint si disponible
+
+# =============================================================================
+#  Vérifications exécutées
+# =============================================================================
+def run_checks(res) -> list:
+    """Contrôles d'équilibre et de cohérence exécutés sur les résultats du
+    moteur. Retourne une liste de dicts {name, measure, threshold, passed,
+    description}. Ce sont des contrôles indépendants (Python/numpy) du
+    calcul C++, pas un second moteur."""
+    out = res.output
+    checks = []
+    R = np.asarray(out.support_reaction, dtype=float)
+    X = np.asarray(out.X, dtype=float)
+    xs = np.asarray(out.node_lengths, dtype=float)
+
+    dev = float(np.max(np.abs(R.sum(axis=0) - 1.0)))
+    checks.append(dict(name="Équilibre vertical ΣRᵢ = 1", measure=dev, threshold=1e-9, passed=dev < 1e-9,
+                       description="Écart maximal, sur toutes les positions de la charge unité, entre la somme "
+                                   "des réactions et la charge."))
+    fixed = res.beam is not None and any(sp["type"] == "fixed" for sp in res.beam.to_dict()["supports"])
+    if not fixed:
+        dev = float(np.max(np.abs(R.T @ xs - X)))
+        checks.append(dict(name="Équilibre des moments ΣRᵢ·xᵢ = x", measure=dev, threshold=1e-8, passed=dev < 1e-8,
+                           description="Écart maximal [m] entre le moment des réactions et celui de la charge "
+                                       "unité (appuis simples)."))
+    W = np.vstack([np.asarray(s, dtype=float) for s in out.Def])
+    asym = float(np.max(np.abs(W - W.T)) / max(np.max(np.abs(W)), 1e-300))
+    checks.append(dict(name="Réciprocité de Maxwell-Betti (flèches)", measure=asym, threshold=1e-10,
+                       passed=asym < 1e-10,
+                       description="Asymétrie relative maximale de la matrice des coefficients d'influence "
+                                   "w(xᵢ ; xⱼ) − w(xⱼ ; xᵢ)."))
+    BM = out.BM
+    cont = 0.0
+    for s in range(len(BM) - 1):
+        cont = max(cont, float(np.max(np.abs(np.asarray(BM[s][-1]) - np.asarray(BM[s + 1][0])))))
+    checks.append(dict(name="Continuité du moment sur appuis", measure=cont, threshold=1e-10, passed=cont < 1e-10,
+                       description="Écart maximal entre M en fin de travée i et en début de travée i+1 [m/kN]."))
+    wsup = max(float(np.max(np.abs(np.asarray(out.Def[s][j])))) for s in range(len(out.Def)) for j in (0, -1))
+    checks.append(dict(name="Flèche nulle aux appuis", measure=wsup, threshold=1e-15, passed=wsup < 1e-15,
+                       description="Flèche maximale aux appuis [m/N]."))
+    return checks
+
+
+def _convergence(res) -> Optional[dict]:
+    """Ré-exécute l'analyse avec 2h et h/2 et rapporte les valeurs gouvernantes."""
+    if not res._has_loads or res.beam is None:
+        return None
+    rows = []
+    for factor in (2.0, 1.0, 0.5):
+        h = res.step * factor
+        r = res if factor == 1.0 else res.beam.analyze(step=h, loads=res.loads)
+        rows.append({"step": h, "nodes": len(r.x),
+                     **{q: r.envelope(q).governing.value for q in ("M", "V", "w")}})
+    # Écart relatif entre pas successifs (2h→h, h→h/2). Un « ordre observé »
+    # sur 3 points n'est pas fiable ici : la section de l'extrême est un nœud
+    # du maillage, d'où une erreur O(h²) à constante irrégulière.
+    for prev, cur in zip(rows, rows[1:]):
+        cur["delta"] = {q: abs(cur[q] - prev[q]) / abs(cur[q]) if cur[q] else 0.0 for q in ("M", "V", "w")}
+    return {"rows": rows}
+
+
+# =============================================================================
+#  Figures
+# =============================================================================
+def _beam_svg(beam_dict: dict, width=760, height=150) -> str:
+    L = beam_dict["total_length"] or 1.0
+    m = 40
+    sx = (width - 2 * m) / L
+    y = 60
+    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" class="fig" role="img" '
+             f'aria-label="Schéma de la poutre">',
+             f'<line x1="{m}" y1="{y}" x2="{width - m}" y2="{y}" stroke="#1a1a1a" stroke-width="4"/>']
+    for sup in beam_dict["supports"]:
+        x = m + sup["x"] * sx
+        if sup["type"] == "fixed":
+            side = -1 if sup["x"] <= 1e-9 else 1
+            parts.append(f'<line x1="{x}" y1="{y - 22}" x2="{x}" y2="{y + 22}" stroke="#1a1a1a" stroke-width="3"/>')
+            for k in range(-20, 22, 8):
+                parts.append(f'<line x1="{x}" y1="{y + k}" x2="{x + 8 * side}" y2="{y + k - 8}" stroke="#1a1a1a"/>')
+        else:
+            parts.append(f'<polygon points="{x},{y + 2} {x - 10},{y + 20} {x + 10},{y + 20}" fill="none" '
+                         f'stroke="#1a1a1a" stroke-width="1.5"/>')
+            if sup["type"] == "roller":
+                parts.append(f'<line x1="{x - 12}" y1="{y + 25}" x2="{x + 12}" y2="{y + 25}" stroke="#1a1a1a"/>')
+    c = 0.0
+    for i, sp in enumerate(beam_dict["spans"]):
+        x0, x1 = m + c * sx, m + (c + sp["length"]) * sx
+        yd = y + 55
+        parts.append(f'<line x1="{x0}" y1="{yd}" x2="{x1}" y2="{yd}" stroke="#555" marker-start="url(#a)" marker-end="url(#a)"/>')
+        parts.append(f'<line x1="{x0}" y1="{yd - 6}" x2="{x0}" y2="{yd + 6}" stroke="#555"/>'
+                     f'<line x1="{x1}" y1="{yd - 6}" x2="{x1}" y2="{yd + 6}" stroke="#555"/>')
+        parts.append(f'<text x="{(x0 + x1) / 2}" y="{yd - 6}" text-anchor="middle" font-size="12">'
+                     f'L{i + 1} = {_num(sp["length"])} m</text>')
+        parts.append(f'<text x="{(x0 + x1) / 2}" y="{y - 14}" text-anchor="middle" font-size="11" fill="#555">'
+                     f'travée {i + 1}</text>')
+        c += sp["length"]
+    parts.append("</svg>")
+    return "".join(parts)
+
+
+def _mpl_svg(draw) -> Optional[str]:
     try:
-        import weasyprint
-        weasyprint.HTML(string=html_content).write_pdf(str(pdf_dest))
-        return pdf_dest
+        import matplotlib
+        matplotlib.use("Agg", force=False)
+        import matplotlib.pyplot as plt
     except ImportError:
-        pass
-
-    # 2. Moteur natif Windows / Chromium (Microsoft Edge ou Google Chrome)
-    browser_exe = _find_chromium()
-    if browser_exe:
-        temp_html_path = None
-        try:
-            with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w", encoding="utf-8") as f:
-                f.write(html_content)
-                temp_html_path = f.name
-
-            cmd = [
-                browser_exe,
-                "--headless",
-                "--disable-gpu",
-                "--no-pdf-header-footer",
-                f"--print-to-pdf={str(pdf_dest)}",
-                temp_html_path,
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            if result.returncode == 0 and pdf_dest.exists() and pdf_dest.stat().st_size > 0:
-                return pdf_dest
-        except Exception:
-            pass
-        finally:
-            if temp_html_path and os.path.exists(temp_html_path):
-                try:
-                    os.remove(temp_html_path)
-                except OSError:
-                    pass
-
-    # 3. Essai avec pdfkit / wkhtmltopdf si disponible
-    try:
-        import pdfkit
-        pdfkit.from_string(html_content, str(pdf_dest))
-        return pdf_dest
-    except (ImportError, Exception):
-        pass
-
-    # 4. Si aucun convertisseur direct n'a pu créer le PDF, on écrit le fichier HTML
-    # avec instruction claire
-    fallback_html = pdf_dest.with_suffix(".html")
-    fallback_html.write_text(html_content, encoding="utf-8")
-    raise RuntimeError(
-        f"Impossible de convertir directement en PDF : aucun moteur Chromium (Edge/Chrome) "
-        f"ou WeasyPrint n'a pu être exécuté.\n"
-        f"Le rapport a été sauvegardé en HTML ici : {fallback_html}\n"
-        f"Vous pouvez l'ouvrir et l'imprimer en PDF (Ctrl+P -> Enregistrer en PDF)."
-    )
-
-
-def _generate_beam_svg(spans: list[float], node_lengths: list[float]) -> str:
-    """Génère le schéma structurel coté de la poutre avec symboles d'appuis RDM6."""
-    n_spans = len(spans)
-    total_l = sum(spans)
-    if total_l <= 0:
-        return ""
-
-    width = 820
-    height = 140
-    margin_x = 50
-    draw_width = width - 2 * margin_x
-    beam_y = 65
-
-    scale = draw_width / total_l
-
-    svg_parts = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="100%" height="{height}" style="background:#fcfdfd; border:1px solid #d1d5db; border-radius:4px;">',
-        '<defs>',
-        '  <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">',
-        '    <path d="M 0 1.5 L 10 5 L 0 8.5 z" fill="#1e3a8a"/>',
-        '  </marker>',
-        '  <pattern id="hatch" width="6" height="6" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">',
-        '    <line x1="0" y1="0" x2="0" y2="6" stroke="#64748b" stroke-width="1.2" />',
-        '  </pattern>',
-        '</defs>',
-    ]
-
-    # Ligne neutre de la poutre (Poutre continue continue)
-    svg_parts.append(
-        f'<line x1="{margin_x}" y1="{beam_y}" x2="{margin_x + draw_width}" y2="{beam_y}" stroke="#1e293b" stroke-width="5" stroke-linecap="round"/>'
-    )
-
-    # Appuis et Nœuds
-    for i, x_cumul in enumerate(node_lengths):
-        cx = margin_x + x_cumul * scale
-        
-        # Symbole Appui Simple / Articulé RDM6 (Triangle + hachures sol)
-        app_top_y = beam_y + 2
-        app_bot_y = beam_y + 26
-        svg_parts.append(
-            f'<polygon points="{cx},{app_top_y} {cx-11},{app_bot_y} {cx+11},{app_bot_y}" fill="#0284c7" stroke="#0f172a" stroke-width="1.5"/>'
-        )
-        svg_parts.append(
-            f'<line x1="{cx-16}" y1="{app_bot_y+1}" x2="{cx+16}" y2="{app_bot_y+1}" stroke="#0f172a" stroke-width="2"/>'
-        )
-        svg_parts.append(
-            f'<rect x="{cx-15}" y="{app_bot_y+2}" width="30" height="6" fill="url(#hatch)" stroke="#94a3b8" stroke-width="0.5"/>'
-        )
-
-        # Repère du Nœud (cercle avec numéro)
-        svg_parts.append(
-            f'<circle cx="{cx}" cy="{beam_y}" r="4" fill="#ffffff" stroke="#0f172a" stroke-width="1.5"/>'
-        )
-        svg_parts.append(
-            f'<text x="{cx}" y="{beam_y - 12}" font-family="Consolas, monospace" font-size="12" font-weight="bold" fill="#1e3a8a" text-anchor="middle">({i+1})</text>'
-        )
-
-    # Cotes des travées (Lignes de cote style RDM6)
-    cote_y = beam_y + 48
-    for i, span_len in enumerate(spans):
-        x_start = margin_x + node_lengths[i] * scale
-        x_end = margin_x + node_lengths[i+1] * scale
-        mid_x = (x_start + x_end) / 2
-
-        # Ligne de cote avec flèches
-        svg_parts.append(
-            f'<line x1="{x_start+4}" y1="{cote_y}" x2="{x_end-4}" y2="{cote_y}" stroke="#1e3a8a" stroke-width="1.2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>'
-        )
-        # Traits de rappel
-        svg_parts.append(
-            f'<line x1="{x_start}" y1="{beam_y+10}" x2="{x_start}" y2="{cote_y+6}" stroke="#94a3b8" stroke-width="0.8" stroke-dasharray="2,2"/>'
-        )
-        svg_parts.append(
-            f'<line x1="{x_end}" y1="{beam_y+10}" x2="{x_end}" y2="{cote_y+6}" stroke="#94a3b8" stroke-width="0.8" stroke-dasharray="2,2"/>'
-        )
-        # Texte de la cote
-        svg_parts.append(
-            f'<rect x="{mid_x-32}" y="{cote_y-8}" width="64" height="16" fill="#fcfdfd"/>'
-        )
-        svg_parts.append(
-            f'<text x="{mid_x}" y="{cote_y+4}" font-family="Consolas, monospace" font-size="11" font-weight="600" fill="#0f172a" text-anchor="middle">L{i+1} = {span_len:.2f}m</text>'
-        )
-
-    svg_parts.append('</svg>')
-    return "".join(svg_parts)
-
-
-def generate_calculation_note(
-    out: Any,
-    output_path: str | Path = "note_de_calcul_rdm6.html",
-    *,
-    project_title: str = "Étude de Flexion de Poutre Continue Hyperstatique",
-    project_ref: str = "RDM6-TSARALOHA-01",
-    engineer_name: str = "Ingénieur Structure",
-    company_name: str = "Département Génie Mécanique & Civil",
-    logo_svg: Optional[str] = None,
-    curve_plotter: Optional[Callable[[Any, str, int, int], str]] = None,
-) -> str:
-    """
-    Génère une note de calcul complète conforme au standard RDM6 / RDM Le Mans.
-    """
-    if not getattr(out, "is_computed", False):
-        out.compute()
-    if not getattr(out, "is_load_envelopes_computed", False) and hasattr(out, "_user_point_loads"):
-        try:
-            out.compute_load_envelopes()
-        except Exception:
-            pass
-
-    date_str = datetime.datetime.now().strftime("%d/%m/%Y")
-    heure_str = datetime.datetime.now().strftime("%H:%M:%S")
-
-    # Géométrie
-    spans = list(out.L_spans)
-    young = list(out.E_spans)
-    inertia = list(out.I_spans)
-    node_lengths = list(out.node_lengths)
-    total_length = sum(spans)
-    steps = float(out.steps)
-    n_spans = len(spans)
-    n_nodes = len(node_lengths)
-    total_mesh_nodes = len(out.X) if len(out.X) > 0 else 0
-
-    # Schéma structurel coté
-    beam_schema_svg = _generate_beam_svg(spans, node_lengths)
-
-    # 1. Tableau des Nœuds (Format RDM6)
-    nodes_table_rows = ""
-    for i, x_pos in enumerate(node_lengths):
-        liaison_desc = "Appui simple (Ty = 0)" if (i == 0 or i == n_nodes - 1) else "Appui intermédiaire (Ty = 0)"
-        nodes_table_rows += f"""
-        <tr>
-            <td style="text-align:center; font-weight:bold;">{i+1}</td>
-            <td style="text-align:right; font-family:Consolas, monospace;">{x_pos:.3f}</td>
-            <td style="text-align:right; font-family:Consolas, monospace;">0.000</td>
-            <td style="text-align:left;">{liaison_desc}</td>
-        </tr>
-        """
-
-    # 2. Tableau des Éléments / Travées (Format RDM6)
-    elements_table_rows = ""
-    for i, (l, e, inert) in enumerate(zip(spans, young, inertia)):
-        e_gpa = e / 1e9
-        e_mpa = e / 1e6
-        iz_cm4 = inert * 1e8
-        elements_table_rows += f"""
-        <tr>
-            <td style="text-align:center; font-weight:bold;">{i+1}</td>
-            <td style="text-align:center;">{i+1}</td>
-            <td style="text-align:center;">{i+2}</td>
-            <td style="text-align:right; font-family:Consolas, monospace;">{l:.3f}</td>
-            <td style="text-align:right; font-family:Consolas, monospace;">{e_mpa:.1f} MPa ({e_gpa:.2f} GPa)</td>
-            <td style="text-align:right; font-family:Consolas, monospace;">{inert:.4e} m⁴ ({iz_cm4:.1f} cm⁴)</td>
-        </tr>
-        """
-
-    # 3. Tableau des Charges
-    point_loads = getattr(out, "_user_point_loads", [])
-    point_loads_rows = ""
-    if point_loads:
-        for idx, p in enumerate(point_loads):
-            intensities_str = " ; ".join(f"P{k+1} = {val:.2f} kN" for k, val in enumerate(p.intensity))
-            lengths_str = " ; ".join(f"d{k+1} = {val:.2f} m" for k, val in enumerate(p.length))
-            point_loads_rows += f"""
-            <tr>
-                <td style="text-align:center; font-weight:bold;">CP-{idx+1}</td>
-                <td style="font-weight:600;">{p.name}</td>
-                <td>Convoi / Ponctuelle</td>
-                <td style="font-family:Consolas, monospace;">{intensities_str}</td>
-                <td style="font-family:Consolas, monospace;">{lengths_str}</td>
-            </tr>
-            """
-    else:
-        point_loads_rows = "<tr><td colspan='5' style='text-align:center; color:#6b7280;'>Aucune charge ponctuelle appliquée.</td></tr>"
-
-    distrib_loads = getattr(out, "_user_distrib_loads", [])
-    distrib_loads_rows = ""
-    if distrib_loads:
-        for idx, d in enumerate(distrib_loads):
-            intensities_str = " ; ".join(f"q{k+1} = {val:.2f} kN/m" for k, val in enumerate(d.intensity))
-            lengths_str = f"Départ = {d.length[0]:.2f} m | " + " ; ".join(f"L{k+1} = {val:.2f} m" for k, val in enumerate(d.length[1:]))
-            distrib_loads_rows += f"""
-            <tr>
-                <td style="text-align:center; font-weight:bold;">CR-{idx+1}</td>
-                <td style="font-weight:600;">{d.name}</td>
-                <td>Répartie Mobile</td>
-                <td style="font-family:Consolas, monospace;">{intensities_str}</td>
-                <td style="font-family:Consolas, monospace;">{lengths_str}</td>
-            </tr>
-            """
-    else:
-        distrib_loads_rows = "<tr><td colspan='5' style='text-align:center; color:#6b7280;'>Aucune charge répartie appliquée.</td></tr>"
-
-    # 4. Maxima L.I.
-    max_bm = out.bending_moment_max_positions
-    max_sf = out.shear_force_max_positions
-    max_def = out.deflection_max_positions
-    max_rot = out.rotation_max_positions
-
-    # 5. Emplacements de courbes
-    curves_html = ""
-    if curve_plotter:
-        for span_idx in range(n_spans):
-            sec_idx = int(round(spans[span_idx] / (2 * steps)))
-            curve_content = curve_plotter(out, "BendingMoment", span_idx, sec_idx)
-            curves_html += f"""
-            <div class="rdm-block">
-                <div class="rdm-block-header">DIAGRAMME DE LA LIGNE D'INFLUENCE — MOMENT FLÉCHISSANT Mz (Travée {span_idx+1}, Mi-travée)</div>
-                <div style="padding: 12px; background:#ffffff; text-align:center;">{curve_content}</div>
-            </div>
-            """
-    else:
-        curves_html = """
-        <div class="rdm-curve-placeholder">
-            <div style="font-weight:bold; font-size:13px; color:#1e3a8a;">[ ZONE GRAPHIQUE — DIAGRAMMES DES LIGNES D'INFLUENCE ]</div>
-            <div style="font-size:12px; color:#4b5563; margin-top:4px;">
-                Connectez votre fonction de traçage de courbes (SVG / Matplotlib / Canvas) via <code>curve_plotter</code>.
-            </div>
-        </div>
-        """
-
-    # 6. Enveloppes
-    envelopes_html = ""
-    if getattr(out, "is_load_envelopes_computed", False):
-        bm_env = out.bending_moment_general_envelope
-        sf_env = out.shear_force_general_envelope
-
-        pt_bm = bm_env.get("point_load", {})
-        rect_bm = bm_env.get("rectangular_load", {})
-        comb_bm = bm_env.get("combined_load", {})
-
-        pt_sf = sf_env.get("point_load", {})
-        rect_sf = sf_env.get("rectangular_load", {})
-        comb_sf = sf_env.get("combined_load", {})
-
-        # Détails par charge
-        pt_contrib_rows = ""
-        for name, data in pt_bm.get("load", {}).items():
-            pt_contrib_rows += f"""
-            <tr>
-                <td style="font-weight:600;">{name}</td>
-                <td style="text-align:right; font-family:Consolas, monospace;">{data.get('Position', 0.0):.3f} m</td>
-                <td style="text-align:right; font-family:Consolas, monospace; font-weight:bold; color:#000080;">{data.get('value', 0.0):.2f} kN.m</td>
-                <td style="text-align:center; font-family:Consolas, monospace;">{int(data.get('alpha', 0))}</td>
-            </tr>
-            """
-
-        rect_contrib_rows = ""
-        for name, data in rect_bm.get("load", {}).items():
-            rect_contrib_rows += f"""
-            <tr>
-                <td style="font-weight:600;">{name}</td>
-                <td style="text-align:right; font-family:Consolas, monospace;">{data.get('Position', 0.0):.3f} m</td>
-                <td style="text-align:right; font-family:Consolas, monospace; font-weight:bold; color:#000080;">{data.get('value', 0.0):.2f} kN.m</td>
-                <td style="text-align:center; font-family:Consolas, monospace;">{int(data.get('alpha', 0))}</td>
-            </tr>
-            """
-
-        envelopes_html = f"""
-        <div class="rdm-section-title">5. ENVELOPPES DES SOLLICITATIONS MAXIMALES & EXTREMA</div>
-        
-        <div class="rdm-grid-2">
-            <div class="rdm-block">
-                <div class="rdm-block-header">MOMENT FLÉCHISSANT MAXIMAL | Mz,max (kN.m)</div>
-                <table class="rdm-table">
-                    <thead>
-                        <tr>
-                            <th>Cas de Charge</th>
-                            <th>Travée / Sec.</th>
-                            <th>Position x</th>
-                            <th style="text-align:right;">Valeur Extrême</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Charges Ponctuelles</td>
-                            <td style="text-align:center;">T{pt_bm.get('span', 0)+1} / S{pt_bm.get('section', 0)}</td>
-                            <td style="text-align:right; font-family:Consolas, monospace;">{pt_bm.get('position', 0.0):.2f} m</td>
-                            <td style="text-align:right; font-family:Consolas, monospace; font-weight:bold;">{pt_bm.get('maximum_value', 0.0):.2f} kN.m</td>
-                        </tr>
-                        <tr>
-                            <td>Charges Réparties</td>
-                            <td style="text-align:center;">T{rect_bm.get('span', 0)+1} / S{rect_bm.get('section', 0)}</td>
-                            <td style="text-align:right; font-family:Consolas, monospace;">{rect_bm.get('position', 0.0):.2f} m</td>
-                            <td style="text-align:right; font-family:Consolas, monospace; font-weight:bold;">{rect_bm.get('maximum_value', 0.0):.2f} kN.m</td>
-                        </tr>
-                        <tr style="background:#eef2ff; font-weight:bold;">
-                            <td>COMBINAISON ENVELOPPE</td>
-                            <td style="text-align:center;">T{comb_bm.get('span', 0)+1} / S{comb_bm.get('section', 0)}</td>
-                            <td style="text-align:right; font-family:Consolas, monospace;">{comb_bm.get('position', 0.0):.2f} m</td>
-                            <td style="text-align:right; font-family:Consolas, monospace; color:#000080; font-size:13px;">{comb_bm.get('maximum_value', 0.0):.2f} kN.m</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="rdm-block">
-                <div class="rdm-block-header">EFFORT TRANCHANT MAXIMAL | Ty,max (kN)</div>
-                <table class="rdm-table">
-                    <thead>
-                        <tr>
-                            <th>Cas de Charge</th>
-                            <th>Travée / Sec.</th>
-                            <th>Position x</th>
-                            <th style="text-align:right;">Valeur Extrême</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Charges Ponctuelles</td>
-                            <td style="text-align:center;">T{pt_sf.get('span', 0)+1} / S{pt_sf.get('section', 0)}</td>
-                            <td style="text-align:right; font-family:Consolas, monospace;">{pt_sf.get('position', 0.0):.2f} m</td>
-                            <td style="text-align:right; font-family:Consolas, monospace; font-weight:bold;">{pt_sf.get('maximum_value', 0.0):.2f} kN</td>
-                        </tr>
-                        <tr>
-                            <td>Charges Réparties</td>
-                            <td style="text-align:center;">T{rect_sf.get('span', 0)+1} / S{rect_sf.get('section', 0)}</td>
-                            <td style="text-align:right; font-family:Consolas, monospace;">{rect_sf.get('position', 0.0):.2f} m</td>
-                            <td style="text-align:right; font-family:Consolas, monospace; font-weight:bold;">{rect_sf.get('maximum_value', 0.0):.2f} kN</td>
-                        </tr>
-                        <tr style="background:#eef2ff; font-weight:bold;">
-                            <td>COMBINAISON ENVELOPPE</td>
-                            <td style="text-align:center;">T{comb_sf.get('span', 0)+1} / S{comb_sf.get('section', 0)}</td>
-                            <td style="text-align:right; font-family:Consolas, monospace;">{comb_sf.get('position', 0.0):.2f} m</td>
-                            <td style="text-align:right; font-family:Consolas, monospace; color:#000080; font-size:13px;">{comb_sf.get('maximum_value', 0.0):.2f} kN</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="rdm-block" style="margin-top:14px;">
-            <div class="rdm-block-header">DÉTAIL DES POSITIONS PHYSIQUES CRITIQUES PAR CHARGE</div>
-            <div class="rdm-grid-2" style="padding: 10px; gap: 12px;">
-                <div>
-                    <div style="font-weight:bold; font-size:11px; color:#1e3a8a; margin-bottom:4px;">Charges Ponctuelles / Convois</div>
-                    <table class="rdm-table">
-                        <thead>
-                            <tr>
-                                <th>Charge</th>
-                                <th>Position x</th>
-                                <th>Contribution Mz</th>
-                                <th>Nœud Grid</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {pt_contrib_rows if pt_contrib_rows else "<tr><td colspan='4' style='text-align:center;'>Aucune</td></tr>"}
-                        </tbody>
-                    </table>
-                </div>
-                <div>
-                    <div style="font-weight:bold; font-size:11px; color:#1e3a8a; margin-bottom:4px;">Charges Réparties / Surcharges</div>
-                    <table class="rdm-table">
-                        <thead>
-                            <tr>
-                                <th>Charge</th>
-                                <th>Position Début</th>
-                                <th>Contribution Mz</th>
-                                <th>Nœud Grid</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rect_contrib_rows if rect_contrib_rows else "<tr><td colspan='4' style='text-align:center;'>Aucune</td></tr>"}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        """
-
-    logo_display = logo_svg if logo_svg else """
-    <div style="font-family:'Courier New', monospace; font-weight:900; font-size:20px; color:#000080; letter-spacing:1px;">
-        [ RDM6 - TSARALOHA ]
-    </div>
-    <div style="font-size:10px; color:#4b5563; font-family:sans-serif;">RDM Éléments Finis & Flexion Poutres</div>
-    """
-
-    html = f"""<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RDM6 — Note de Calcul — {project_title}</title>
-    <style>
-        @page {{
-            size: A4 portrait;
-            margin: 12mm 15mm 15mm 15mm;
-        }}
-
-        * {{
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }}
-
-        body {{
-            font-family: Arial, Helvetica, sans-serif;
-            background-color: #e5e7eb;
-            color: #111827;
-            font-size: 12px;
-            line-height: 1.4;
-            padding: 20px 10px;
-        }}
-
-        .rdm-page {{
-            max-width: 960px;
-            margin: 0 auto;
-            background: #ffffff;
-            border: 2px solid #000080;
-            padding: 20px 24px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }}
-
-        /* Cartouche RDM6 Normalisé */
-        .rdm-cartouche {{
-            display: table;
-            width: 100%;
-            border: 2px solid #000080;
-            border-collapse: collapse;
-            margin-bottom: 16px;
-        }}
-
-        .rdm-cartouche-row {{
-            display: table-row;
-        }}
-
-        .rdm-cartouche-cell {{
-            display: table-cell;
-            border: 1px solid #000080;
-            padding: 6px 10px;
-            vertical-align: middle;
-        }}
-
-        .rdm-cartouche-header {{
-            background: #f0f4f8;
-            font-weight: bold;
-            color: #000080;
-            text-align: center;
-            font-size: 14px;
-            padding: 8px;
-        }}
-
-        /* Titres de section RDM6 */
-        .rdm-section-title {{
-            background: #000080;
-            color: #ffffff;
-            font-weight: bold;
-            font-size: 12px;
-            padding: 4px 8px;
-            margin-top: 18px;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }}
-
-        .rdm-block {{
-            border: 1px solid #94a3b8;
-            margin-bottom: 12px;
-            background: #ffffff;
-        }}
-
-        .rdm-block-header {{
-            background: #f1f5f9;
-            color: #000080;
-            font-weight: bold;
-            font-size: 11px;
-            padding: 4px 8px;
-            border-bottom: 1px solid #94a3b8;
-        }}
-
-        /* Tableaux RDM6 */
-        .rdm-table {{
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 11px;
-        }}
-
-        .rdm-table th {{
-            background: #f8fafc;
-            color: #0f172a;
-            border: 1px solid #cbd5e1;
-            padding: 5px 6px;
-            font-weight: bold;
-            text-align: center;
-        }}
-
-        .rdm-table td {{
-            border: 1px solid #cbd5e1;
-            padding: 4px 6px;
-            color: #1e293b;
-        }}
-
-        .rdm-table tr:nth-child(even) {{
-            background-color: #fafafa;
-        }}
-
-        /* Grilles */
-        .rdm-grid-2 {{
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }}
-
-        .rdm-grid-4 {{
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
-        }}
-
-        .rdm-stat {{
-            border: 1px solid #cbd5e1;
-            padding: 6px;
-            text-align: center;
-            background: #f8fafc;
-        }}
-
-        .rdm-stat-val {{
-            font-family: Consolas, monospace;
-            font-size: 14px;
-            font-weight: bold;
-            color: #000080;
-        }}
-
-        .rdm-stat-lbl {{
-            font-size: 10px;
-            color: #475569;
-            text-transform: uppercase;
-            margin-top: 2px;
-        }}
-
-        .rdm-curve-placeholder {{
-            border: 1px dashed #000080;
-            background: #f8fafc;
-            padding: 24px;
-            text-align: center;
-            margin: 8px 0;
-        }}
-
-        .rdm-footer {{
-            margin-top: 24px;
-            border-top: 1px solid #94a3b8;
-            padding-top: 8px;
-            font-size: 10px;
-            color: #64748b;
-            display: flex;
-            justify-content: space-between;
-        }}
-
-        @media print {{
-            body {{
-                background: #ffffff;
-                padding: 0;
-            }}
-            .rdm-page {{
-                border: none;
-                box-shadow: none;
-                padding: 0;
-                max-width: 100%;
-            }}
-        }}
-    </style>
-</head>
-<body>
-
-<div class="rdm-page">
-
-    <!-- ── Cartouche RDM6 ────────────────────────────────────────────────── -->
-    <div class="rdm-cartouche">
-        <div class="rdm-cartouche-row">
-            <div class="rdm-cartouche-cell" style="width: 28%; text-align:center;">
-                {logo_display}
-            </div>
-            <div class="rdm-cartouche-cell rdm-cartouche-header" style="width: 44%;">
-                NOTE DE CALCUL — FLEXION DES POUTRES CONTINUES
-                <div style="font-size:11px; font-weight:normal; color:#334155; margin-top:3px;">
-                    {project_title}
-                </div>
-            </div>
-            <div class="rdm-cartouche-cell" style="width: 28%; font-size:11px;">
-                <div><strong>Réf :</strong> {project_ref}</div>
-                <div><strong>Date :</strong> {date_str} à {heure_str}</div>
-                <div><strong>Auteur :</strong> {engineer_name}</div>
-                <div><strong>Affaire :</strong> {company_name}</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ── Schéma Cinématique Coté RDM6 ─────────────────────────────────── -->
-    <div class="rdm-block">
-        <div class="rdm-block-header">MODÉLISATION GÉOMÉTRIQUE & SCHÉMA CINÉMATIQUE DE LA STRUCTURE</div>
-        <div style="padding: 10px 14px;">
-            {beam_schema_svg}
-        </div>
-    </div>
-
-    <!-- ── 1. Nœuds et Conditions aux Limites ────────────────────────────── -->
-    <div class="rdm-section-title">1. NŒUDS ET CONDITIONS AUX LIMITES (LIAISONS)</div>
-    <div class="rdm-grid-2">
-        <div>
-            <div class="rdm-block-header">TABLEAU DES NŒUDS & COORDONNÉES</div>
-            <table class="rdm-table">
-                <thead>
-                    <tr>
-                        <th>Nœud</th>
-                        <th>X (m)</th>
-                        <th>Y (m)</th>
-                        <th>Liaison / Condition Limite</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {nodes_table_rows}
-                </tbody>
-            </table>
-        </div>
-        <div>
-            <div class="rdm-block-header">PARAMÈTRES GLOBAUX DU MODÈLE</div>
-            <div class="rdm-grid-2" style="padding:8px; gap:8px;">
-                <div class="rdm-stat">
-                    <div class="rdm-stat-val">{n_spans}</div>
-                    <div class="rdm-stat-lbl">Travées</div>
-                </div>
-                <div class="rdm-stat">
-                    <div class="rdm-stat-val">{total_length:.2f} m</div>
-                    <div class="rdm-stat-lbl">Longueur Totale</div>
-                </div>
-                <div class="rdm-stat">
-                    <div class="rdm-stat-val">{steps:.2f} m</div>
-                    <div class="rdm-stat-lbl">Pas d'Échantillonnage</div>
-                </div>
-                <div class="rdm-stat">
-                    <div class="rdm-stat-val">{total_mesh_nodes}</div>
-                    <div class="rdm-stat-lbl">Points de Maillage</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ── 2. Éléments et Caractéristiques Mécaniques ────────────────────── -->
-    <div class="rdm-section-title">2. ÉLÉMENTS ET CARACTÉRISTIQUES MÉCANIQUES DES POUTRES</div>
-    <table class="rdm-table">
-        <thead>
-            <tr>
-                <th>Élément</th>
-                <th>Nœud Origine</th>
-                <th>Nœud Extrémité</th>
-                <th>Longueur L (m)</th>
-                <th>Module de Young E</th>
-                <th>Inertie de Flexion Iz</th>
-            </tr>
-        </thead>
-        <tbody>
-            {elements_table_rows}
-        </tbody>
-    </table>
-
-    <!-- ── 3. Cas de Charges ─────────────────────────────────────────────── -->
-    <div class="rdm-section-title">3. HYPOTHÈSES DES CHARGES MOBILES (INVENTAIRE DU CONVOI)</div>
-    
-    <div class="rdm-block">
-        <div class="rdm-block-header">CHARGES PONCTUELLES & CONVOIS D'ESSIEUX</div>
-        <table class="rdm-table">
-            <thead>
-                <tr>
-                    <th>Réf.</th>
-                    <th>Nom du Convoi</th>
-                    <th>Type</th>
-                    <th>Forces par Essieu</th>
-                    <th>Entraxes / Distances relatives</th>
-                </tr>
-            </thead>
-            <tbody>
-                {point_loads_rows}
-            </tbody>
-        </table>
-    </div>
-
-    <div class="rdm-block">
-        <div class="rdm-block-header">CHARGES RÉPARTIES MOBILES & SURCHARGES</div>
-        <table class="rdm-table">
-            <thead>
-                <tr>
-                    <th>Réf.</th>
-                    <th>Nom de la Surcharge</th>
-                    <th>Type</th>
-                    <th>Intensités par Tronçon</th>
-                    <th>Position Départ & Longueurs</th>
-                </tr>
-            </thead>
-            <tbody>
-                {distrib_loads_rows}
-            </tbody>
-        </table>
-    </div>
-
-    <!-- ── 4. Lignes d'Influence ─────────────────────────────────────────── -->
-    <div class="rdm-section-title">4. ANALYSE DES LIGNES D'INFLUENCE & VALEURS REMARQUABLES</div>
-    
-    <div class="rdm-grid-4">
-        <div class="rdm-stat">
-            <div class="rdm-stat-val">{max_bm.get('val', 0.0):.2f} kN.m</div>
-            <div class="rdm-stat-lbl">Moment Max (L.I.)</div>
-            <div style="font-size:9px; color:#64748b;">Travée {max_bm.get('i', 0)+1}, Sec. {max_bm.get('j', 0)}</div>
-        </div>
-        <div class="rdm-stat">
-            <div class="rdm-stat-val">{max_sf.get('val', 0.0):.2f} kN</div>
-            <div class="rdm-stat-lbl">Tranchant Max (L.I.)</div>
-            <div style="font-size:9px; color:#64748b;">Travée {max_sf.get('i', 0)+1}, Sec. {max_sf.get('j', 0)}</div>
-        </div>
-        <div class="rdm-stat">
-            <div class="rdm-stat-val">{max_def.get('val', 0.0):.3e} m</div>
-            <div class="rdm-stat-lbl">Flèche Max (L.I.)</div>
-            <div style="font-size:9px; color:#64748b;">Travée {max_def.get('i', 0)+1}, Sec. {max_def.get('j', 0)}</div>
-        </div>
-        <div class="rdm-stat">
-            <div class="rdm-stat-val">{max_rot.get('val', 0.0):.3e} rad</div>
-            <div class="rdm-stat-lbl">Rotation Max (L.I.)</div>
-            <div style="font-size:9px; color:#64748b;">Travée {max_rot.get('i', 0)+1}, Sec. {max_rot.get('j', 0)}</div>
-        </div>
-    </div>
-
-    <!-- Zone Graphique -->
-    <div style="margin-top:10px;">
-        {curves_html}
-    </div>
-
-    <!-- ── 5. Enveloppes ─────────────────────────────────────────────────── -->
-    {envelopes_html}
-
-    <!-- ── Cartouche de Fin RDM6 ─────────────────────────────────────────── -->
-    <div class="rdm-footer">
-        <div>Logiciel : <strong>RDM6 / Tsaraloha.LIPoutreContinue Core Engine</strong></div>
-        <div>Méthode des Éléments Finis & Équation des Trois Moments (Clapeyron)</div>
-        <div>Page 1/1</div>
-    </div>
-
-</div>
-
-</body>
-</html>
+        return None
+    fig, ax = plt.subplots(figsize=(9.5, 3.4))
+    draw(ax)
+    fig.tight_layout()
+    buf = io.StringIO()
+    fig.savefig(buf, format="svg")
+    plt.close(fig)
+    svg = buf.getvalue()
+    return svg[svg.index("<svg"):]
+
+
+def _figure_envelope(res, q):
+    def draw(ax):
+        res.plot(q, ax=ax)
+    return _mpl_svg(draw)
+
+
+def _figure_influence(res, q, x):
+    def draw(ax):
+        lx, v, xs = res.influence_line(q, x)
+        ax.plot(lx, v, color="#1f4e79")
+        ax.fill_between(lx, 0, v, color="#1f4e79", alpha=0.12)
+        for s in res.support_positions:
+            ax.axvline(s, color="0.6", linestyle=":", linewidth=0.8)
+        ax.axhline(0, color="0.3", linewidth=0.8)
+        ax.set_xlabel("position de la charge unité [m]")
+        ax.set_ylabel(f"{_LABELS[q]} par kN")
+        ax.set_title(f"Ligne d'influence de {_LABELS[q]} en x = {xs:.3f} m")
+        ax.grid(alpha=0.3)
+    return _mpl_svg(draw)
+
+
+# =============================================================================
+#  Génération
+# =============================================================================
+_CSS = """
+body{font-family:'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1a1a;max-width:900px;margin:0 auto;padding:24px;line-height:1.45;background:#fff}
+h1{font-size:26px;margin:0 0 6px} h2{font-size:18px;border-bottom:2px solid #1f4e79;padding-bottom:4px;margin-top:34px;color:#1f4e79}
+h3{font-size:15px;margin-top:20px}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13px}
+th,td{border:1px solid #c8ced6;padding:5px 8px;text-align:left;vertical-align:top}
+th{background:#eef2f7} td.n{text-align:right;font-variant-numeric:tabular-nums;font-family:Consolas,monospace}
+.cover{border:2px solid #1f4e79;padding:28px;margin-bottom:24px;page-break-after:always}
+.eq{font-family:'Cambria Math',Cambria,serif;background:#f6f8fa;padding:8px 12px;margin:8px 0;border-left:3px solid #1f4e79}
+.ok{color:#1e7b34;font-weight:600} .ko{color:#b3261e;font-weight:600}
+.note{font-size:12px;color:#555} svg.fig,figure svg{width:100%;height:auto}
+figure{margin:12px 0} figcaption{font-size:12px;color:#555;text-align:center}
+@media print{body{max-width:none;padding:0} h2{page-break-after:avoid} figure,table{page-break-inside:avoid}}
 """
-    dest = Path(output_path)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-
-    # Si l'utilisateur demande un PDF (extension .pdf)
-    if dest.suffix.lower() == ".pdf":
-        html_to_pdf(html, dest)
-        return str(dest)
-
-    dest.write_text(html, encoding="utf-8")
-    return html
 
 
-def generate_calculation_pdf(
-    out: Any,
-    output_path: str | Path = "note_de_calcul_rdm6.pdf",
-    *,
-    project_title: str = "Étude de Flexion de Poutre Continue Hyperstatique",
-    project_ref: str = "RDM6-TSARALOHA-01",
-    engineer_name: str = "Ingénieur Structure",
-    company_name: str = "Département Génie Mécanique & Civil",
-    logo_svg: Optional[str] = None,
-    curve_plotter: Optional[Callable[[Any, str, int, int], str]] = None,
-) -> Path:
+def generate_report(res, path: Union[str, Path] = "note_de_calcul.html", *,
+                    project_title: str = "Étude d'une poutre continue",
+                    project_ref: str = "", author: str = "", company: str = "",
+                    convergence: bool = False) -> Path:
+    """Génère la note de calcul (HTML, ou PDF si ``path`` finit par ``.pdf``).
+
+    ``convergence=True`` ré-exécute l'analyse avec les pas 2h et h/2 et
+    ajoute l'étude de convergence (coût : deux calculs supplémentaires).
     """
-    Génère la note de calcul directement au format PDF (mise en page RDM6 A4).
+    from . import __version__
 
-    Parameters
-    ----------
-    out : Tsaraloha.LIPoutreContinue.Output
-        L'objet Output calculé avec ses charges.
-    output_path : str or Path
-        Chemin du fichier PDF de sortie (ex: "note_de_calcul.pdf").
+    path = Path(path)
+    beam = res.beam
+    bd = beam.to_dict()
+    out = res.output
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    checks = run_checks(res)
+    conv = _convergence(res) if convergence else None
+    S = []
 
-    Returns
-    -------
-    Path
-        Le chemin absolu vers le fichier PDF généré.
-    """
-    pdf_dest = Path(output_path)
-    if pdf_dest.suffix.lower() != ".pdf":
-        pdf_dest = pdf_dest.with_suffix(".pdf")
+    # 1-2. Page de garde + identification
+    S.append(f"""<div class="cover"><h1>{_e(project_title)}</h1>
+<p>Note de calcul — poutre continue sous charges mobiles</p>
+<table><tr><th>Référence</th><td>{_e(project_ref) or '—'}</td></tr>
+<tr><th>Auteur</th><td>{_e(author) or '—'}</td></tr><tr><th>Organisme</th><td>{_e(company) or '—'}</td></tr>
+<tr><th>Date de génération</th><td>{now}</td></tr>
+<tr><th>Logiciel</th><td>Tsaraloha.LIPoutreContinue {__version__} (moteur C++)</td></tr></table>
+<p class="note">Document généré automatiquement à partir des données d'entrée et des résultats calculés
+reproduits ci-dessous. Il appartient à l'ingénieur de vérifier l'adéquation du modèle au projet.</p></div>""")
 
-    generate_calculation_note(
-        out,
-        output_path=pdf_dest,
-        project_title=project_title,
-        project_ref=project_ref,
-        engineer_name=engineer_name,
-        company_name=company_name,
-        logo_svg=logo_svg,
-        curve_plotter=curve_plotter,
-    )
-    return pdf_dest
+    # 3-6. Structure, géométrie, matériaux, appuis
+    rows = "".join(f"<tr><td>{i + 1}</td><td class=n>{_num(s['length'])}</td><td class=n>{_num(s['E'])}</td>"
+                   f"<td class=n>{_num(s['I'])}</td><td class=n>{_num(s['E'] * s['I'])}</td></tr>"
+                   for i, s in enumerate(bd["spans"]))
+    sup = "".join(f"<tr><td>{i}</td><td class=n>{_num(s['x'])}</td><td>{ {'pin': 'appui simple (articulé)', 'roller': 'appui simple (glissant)', 'fixed': 'encastrement'}[s['type']] }</td></tr>"
+                  for i, s in enumerate(bd["supports"]))
+    S.append(f"""<h2>1. Description de la structure</h2>
+<p>Poutre continue de {len(bd['spans'])} travée(s), longueur totale {_num(bd['total_length'])} m.</p>
+<figure>{_beam_svg(bd)}<figcaption>Figure 1 — Schéma de la poutre et des appuis</figcaption></figure>
+<h3>Géométrie et propriétés mécaniques</h3>
+<table><tr><th>Travée</th><th>L [m]</th><th>E [Pa]</th><th>I [m⁴]</th><th>EI [N·m²]</th></tr>{rows}</table>
+<h3>Conditions d'appui</h3><table><tr><th>Appui</th><th>x [m]</th><th>Type</th></tr>{sup}</table>""")
 
+    # 7-10. Hypothèses, modèle, méthode, équations
+    S.append("""<h2>2. Hypothèses et modèle mathématique</h2>
+<ul><li>Poutre d'Euler-Bernoulli, matériau élastique linéaire, petits déplacements ; déformation d'effort
+tranchant négligée ; EI constant par travée.</li>
+<li>Appuis ponctuels indéformables verticalement ; encastrement = rotation bloquée (modélisé par une travée de
+souplesse nulle).</li>
+<li>Charges verticales descendantes, superposition linéaire des effets.</li>
+<li>Conventions : M &gt; 0 fibre inférieure tendue ; V selon la statique de la travée ; w &gt; 0 vers le haut ;
+R &gt; 0 vers le haut. Unités : m, kN, kN·m, Pa, m⁴, rad.</li></ul>
+<h3>Équations fondamentales</h3>
+<p>Équation des trois moments (Clapeyron) à l'appui i, pour une charge dans les travées adjacentes :</p>
+<div class="eq">bᵢ Mᵢ₋₁ + (cᵢ + aᵢ₊₁) Mᵢ + bᵢ₊₁ Mᵢ₊₁ = ω′ᵢ₊₁ − ω″ᵢ &nbsp;&nbsp; avec aᵢ = cᵢ = Lᵢ/(3EIᵢ), bᵢ = Lᵢ/(6EIᵢ)</div>
+<p>ω′, ω″ : rotations d'extrémité de la travée isostatique associée (charge unité en a, b = L − a) :</p>
+<div class="eq">ω′ = −a b (L + b) / (6 E I L) &nbsp;&nbsp;&nbsp; ω″ = a b (L + a) / (6 E I L)</div>
+<p>Résolution par la méthode des foyers (rapports φᵢ, φ′ᵢ) :</p>
+<div class="eq">φ₁ = 0, &nbsp; φᵢ = bᵢ / (aᵢ + cᵢ₋₁ − bᵢ₋₁ φᵢ₋₁)</div>
+<p>Sollicitations en x d'une travée (M₀, V₀, w₀ : solution isostatique) :</p>
+<div class="eq">M(x) = M₀(x) + Mᵢ₋₁ (1 − x/L) + Mᵢ x/L &nbsp;&nbsp; V(x) = V₀(x) + (Mᵢ − Mᵢ₋₁)/L</div>
+<div class="eq">Rᵢ = R⁰ᵢ + (Mᵢ₋₁ − Mᵢ)/Lᵢ₋₁ + (Mᵢ₊₁ − Mᵢ)/Lᵢ</div>""")
+
+    n_per_span = [len(s) for s in out.span_node_positions]
+    S.append(f"""<h2>3. Méthode numérique et discrétisation</h2>
+<p>Les lignes d'influence sont calculées exactement aux nœuds de calcul (pas h = {_num(res.step)} m,
+{len(res.x)} nœuds, soit {', '.join(map(str, n_per_span))} par travée). Pour les charges mobiles, chaque ligne
+d'influence est l'interpolant linéaire par morceaux de ses valeurs nodales. La position la plus défavorable est
+recherchée <b>exactement</b> sur cet interpolant : un essieu sur chaque nœud pour les convois, et intégration
+exacte avec annulation de la dérivée pour les charges réparties. Toutes les positions sont explorées, y compris
+l'entrée et la sortie partielles.</p>
+<p>Enveloppes de charges indépendantes : E⁺ = Σ max, E⁻ = Σ min (une charge peut être absente).</p>
+<p class="note">Erreur de discrétisation : nulle pour M et V isostatiques ; O(h²) pour les grandeurs
+hyperstatiques, dont les lignes d'influence sont cubiques entre les nœuds.</p>""")
+
+    # 12. Charges
+    lrows = []
+    for ld in getattr(res, "loads", ()):
+        if hasattr(ld, "axles"):
+            lrows.append(f"<tr><td>{_e(ld.name)}</td><td>Convoi</td><td>{', '.join(_num(a) for a in ld.axles)} kN</td>"
+                         f"<td>{', '.join(_num(s) for s in ld.spacings) or '—'} m</td></tr>")
+        else:
+            qs, ls = ld._segments(beam.total_length)
+            lrows.append(f"<tr><td>{_e(ld.name)}</td><td>Répartie</td><td>{', '.join(_num(q) for q in qs)} kN/m</td>"
+                         f"<td>{', '.join(_num(l) for l in ls)} m</td></tr>")
+    S.append("<h2>4. Charges mobiles</h2>" + (
+        "<table><tr><th>Nom</th><th>Type</th><th>Intensités</th><th>Entraxes / longueurs</th></tr>"
+        + "".join(lrows) + "</table>" if lrows else "<p>Aucune charge mobile : seules les lignes d'influence sont présentées.</p>"))
+
+    # 13. Lignes d'influence
+    ile = out.influence_line_extrema
+    irows = "".join(
+        f"<tr><td>{_LABELS[q]}</td><td class=n>{_num(ile[k]['max']['value'] * f)}</td><td class=n>{_num(ile[k]['max']['section_x'])}</td>"
+        f"<td class=n>{_num(ile[k]['max']['load_x'])}</td><td class=n>{_num(ile[k]['min']['value'] * f)}</td>"
+        f"<td class=n>{_num(ile[k]['min']['section_x'])}</td><td class=n>{_num(ile[k]['min']['load_x'])}</td></tr>"
+        for q, k, f in (("M", "bending_moment", 1), ("V", "shear_force", 1), ("w", "deflection", 1e3), ("theta", "rotation", 1e3)))
+    S.append(f"""<h2>5. Lignes d'influence</h2>
+<p>Valeurs extrêmes des lignes d'influence par kN de charge unité (section x_s, position de la charge x_c).</p>
+<table><tr><th>Grandeur</th><th>max</th><th>x_s [m]</th><th>x_c [m]</th><th>min</th><th>x_s [m]</th><th>x_c [m]</th></tr>{irows}</table>""")
+    fig = _figure_influence(res, "M", ile["bending_moment"]["min"]["section_x"])
+    if fig:
+        S.append(f"<figure>{fig}<figcaption>Ligne d'influence du moment à la section du moment minimal</figcaption></figure>")
+
+    # 14-17. Enveloppes, positions critiques, valeurs caractéristiques
+    if res._has_loads:
+        erows, crows = [], []
+        for q in ("M", "V", "w", "theta"):
+            for kind in ("point", "distributed", "combined"):
+                e = res.envelope(q, kind)
+                erows.append(f"<tr><td>{_LABELS[q]}</td><td>{_KIND_LABELS[kind]}</td>"
+                             f"<td class=n>{_num(e.max_extremum.value)}</td><td class=n>{_num(e.max_extremum.x)}</td>"
+                             f"<td class=n>{_num(e.min_extremum.value)}</td><td class=n>{_num(e.min_extremum.x)}</td><td>{_UNITS[q]}</td></tr>")
+            e = res.envelope(q)
+            for label, ex in (("max", e.max_extremum), ("min", e.min_extremum)):
+                det = "; ".join(f"{_e(n)} : {_num(d['value'])} {_UNITS[q]} (origine {_num(d['position'])} m)"
+                                for n, d in ex.loads.items())
+                crows.append(f"<tr><td>{_LABELS[q]} {label}</td><td class=n>{_num(ex.value)} {_UNITS[q]}</td>"
+                             f"<td class=n>{_num(ex.x)}</td><td>{det}</td></tr>")
+        S.append("<h2>6. Enveloppes des sollicitations</h2>")
+        for i, q in enumerate(("M", "V", "w")):
+            fig = _figure_envelope(res, q)
+            if fig:
+                S.append(f"<figure>{fig}<figcaption>Enveloppe de {_LABELS[q]} (combinaison)</figcaption></figure>")
+        S.append("<table><tr><th>Grandeur</th><th>Charges</th><th>max</th><th>x [m]</th><th>min</th><th>x [m]</th><th>Unité</th></tr>"
+                 + "".join(erows) + "</table>")
+        S.append("<h2>7. Positions critiques des charges</h2><p>Combinaison ; « origine » = abscisse du premier essieu "
+                 "ou du début du bloc réparti. « — » : la charge est absente de la configuration la plus défavorable.</p>"
+                 "<table><tr><th>Extrême</th><th>Valeur</th><th>Section x [m]</th><th>Contributions</th></tr>"
+                 + "".join(crows) + "</table>")
+        rrows = "".join(f"<tr><td>{r['support']}</td><td class=n>{_num(r['x'])}</td><td class=n>{_num(r['max'])}</td>"
+                        f"<td class=n>{_num(r['min'])}</td></tr>" for r in res.reactions())
+        S.append("<h2>8. Réactions d'appui</h2><table><tr><th>Appui</th><th>x [m]</th><th>R max [kN]</th><th>R min [kN]</th></tr>"
+                 + rrows + "</table>")
+
+    # 18. Vérifications
+    vrows = "".join(f"<tr><td>{_e(c['name'])}</td><td class=n>{_num(c['measure'])}</td><td class=n>&lt; {_num(c['threshold'])}</td>"
+                    f"<td class={'ok' if c['passed'] else 'ko'}>{'conforme' if c['passed'] else 'NON CONFORME'}</td>"
+                    f"<td class=note>{_e(c['description'])}</td></tr>" for c in checks)
+    S.append("<h2>9. Vérifications d'équilibre et de cohérence</h2><p>Contrôles exécutés lors de la génération "
+             "de ce document sur les résultats du moteur.</p><table><tr><th>Contrôle</th><th>Mesure</th>"
+             "<th>Seuil</th><th>Résultat</th><th>Définition</th></tr>" + vrows + "</table>")
+
+    # 19. Convergence
+    if conv:
+        def cell(r, q):
+            d = r.get("delta", {}).get(q)
+            return f"<td class=n>{_num(r[q], 6)}</td><td class=n>{_num(d, 2) if d is not None else '—'}</td>"
+        crow = "".join(f"<tr><td class=n>{_num(r['step'])}</td><td class=n>{r['nodes']}</td>"
+                       + "".join(cell(r, q) for q in ("M", "V", "w")) + "</tr>" for r in conv["rows"])
+        S.append("<h2>10. Étude de convergence</h2><p>Analyse ré-exécutée avec les pas 2h, h et h/2 (valeurs "
+                 "gouvernantes des enveloppes combinées). Δ = écart relatif par rapport au pas précédent.</p>"
+                 "<table><tr><th>h [m]</th><th>Nœuds</th><th>M [kN·m]</th><th>Δ</th><th>V [kN]</th><th>Δ</th>"
+                 f"<th>w [m]</th><th>Δ</th></tr>{crow}</table>"
+                 "<p class=note>L'extrême est recherché aux sections de calcul (nœuds) : l'erreur de discrétisation "
+                 "décroît en O(h²) mais avec une constante irrégulière, selon la position de l'extrême vrai entre "
+                 "deux nœuds. Δ mesure directement la sensibilité au pas retenu.</p>")
+    else:
+        S.append("<h2>10. Étude de convergence</h2><p>Non exécutée pour ce document "
+                 "(option <code>convergence=True</code>).</p>")
+
+    # 20. Conclusion
+    n_ko = sum(not c["passed"] for c in checks)
+    S.append(f"""<h2>11. Conclusion et limites du modèle</h2>
+<p>{'Toutes les vérifications exécutées sont conformes.' if n_ko == 0 else f'<span class=ko>{n_ko} vérification(s) non conforme(s) : les résultats ne doivent pas être utilisés en l’état.</span>'}</p>
+<ul><li>Modèle linéaire élastique d'Euler-Bernoulli, sans déformation d'effort tranchant ni effets du second ordre.</li>
+<li>Porte-à-faux, rotules, appuis élastiques et inertie variable dans une travée ne sont pas modélisés.</li>
+<li>Charges réparties : bloc rigide de longueur fixée (le chargement des seules zones défavorables n'est pas
+recherché). Convois : un seul sens de circulation par charge déclarée.</li>
+<li>Erreur de discrétisation O(h²) pour les grandeurs hyperstatiques (voir § 3 et § 10).</li>
+<li>Aucune vérification réglementaire (résistance, ELS, coefficients partiels) n'est effectuée par ce document.</li></ul>""")
+
+    doc = (f"<!doctype html><html lang=fr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
+           f"<title>{_e(project_title)}</title><style>{_CSS}</style></head><body>{''.join(S)}</body></html>")
+
+    if path.suffix.lower() == ".pdf":
+        try:
+            import weasyprint
+        except ImportError as exc:
+            raise ImportError("La sortie PDF nécessite weasyprint : pip install \"Tsaraloha[report]\". "
+                              "Sinon, générez le HTML (extension .html) et imprimez-le en PDF.") from exc
+        weasyprint.HTML(string=doc).write_pdf(str(path))
+    else:
+        path.write_text(doc, encoding="utf-8")
+    return path
+
+
+# =============================================================================
+#  Compatibilité 1.x (Output.generate_calculation_note / _pdf)
+# =============================================================================
+def _results_from_output(output):
+    from .api import Beam, Results
+    E, I, L = getattr(output, "_declared_model", (list(output.E_spans), list(output.I_spans), list(output.L_spans)))
+    beam = Beam()
+    for e, i, l in zip(E, I, L):
+        if l > 0:
+            beam.add_span(l, e, i)
+    bounds = beam.boundaries
+    for x in bounds:
+        beam.add_support(x, "pin")
+    if L and L[0] == 0:
+        beam.add_support(bounds[0], "fixed")
+    if L and L[-1] == 0:
+        beam.add_support(bounds[-1], "fixed")
+    has_loads = bool(output.is_load_envelopes_computed)
+    res = Results(beam, output, float(output.steps), has_loads)
+    res.loads = ()
+    return res
+
+
+def generate_calculation_note(output, output_path="note_de_calcul.html", *, project_title="Étude de poutre continue",
+                              project_ref="", engineer_name="", company_name="", logo_svg=None, curve_plotter=None):
+    """Compatibilité 1.x : préférez ``Beam.analyze(...).report(path)``."""
+    warnings.warn("generate_calculation_note(output, ...) est déprécié : utilisez Beam(...).analyze(...).report(path).",
+                  DeprecationWarning, stacklevel=2)
+    if logo_svg is not None or curve_plotter is not None:
+        warnings.warn("logo_svg et curve_plotter ne sont plus pris en charge et sont ignorés.", stacklevel=2)
+    return str(generate_report(_results_from_output(output), output_path, project_title=project_title,
+                               project_ref=project_ref, author=engineer_name, company=company_name))
+
+
+def generate_calculation_pdf(output, output_path="note_de_calcul.pdf", **kwargs):
+    """Compatibilité 1.x : préférez ``Beam.analyze(...).report("note.pdf")``."""
+    path = str(output_path)
+    if not path.lower().endswith(".pdf"):
+        path += ".pdf"
+    return generate_calculation_note(output, path, **kwargs)

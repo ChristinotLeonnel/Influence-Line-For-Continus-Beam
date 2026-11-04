@@ -157,8 +157,16 @@ correction proposée.
   pour le min, avec raffinement local (interpolation parabolique ou analytique)
   de l'extremum.
 
+- **Statut 2.0 :** partiellement corrigé. Max et min sont fournis séparément, avec des abscisses physiques
+  (`section_x`, `load_x`, origine des charges). L'extrême reste cependant recherché **aux sections de
+  calcul** (nœuds). Mesure : flèche maximale d'une poutre 10 + 12 m sous un convoi, h = 1 → 0,03125 m :
+  −0,024426 → −0,024569 m. Les écarts successifs décroissent globalement en O(h²) mais de façon irrégulière
+  (ordres apparents de 1,3 à 4,5), selon la position de l'extrême vrai entre deux nœuds. La note de calcul
+  publie donc l'écart relatif entre pas successifs plutôt qu'un « ordre observé » peu fiable.
+  Raffinement local de l'extrême : ouvert (lié à N6b).
+
 ### N11 — Backend Python : encastrement impossible
-- `L = [0, 10]` → `ZeroDivisionError` ([_core_python.py:306](../../python/Tsaraloha/LIPoutreContinue/_core_python.py#L306)). Le C++ fonctionne.
+- **Résolu en 2.0 par suppression du backend.** `L = [0, 10]` → `ZeroDivisionError` ([_core_python.py:306](../../python/Tsaraloha/LIPoutreContinue/_core_python.py#L306)). Le C++ fonctionne.
 
 ### N12 — Robustesse des entrées (C++)
 - Aucun contrôle côté C++ : `steps ≤ 0` provoque une boucle infinie

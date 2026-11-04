@@ -422,6 +422,9 @@ class Output(_RawOutput):
         _v.check_matching_lengths(E=E, I=I, L=L)
         steps = _v.check_positive_number("steps", steps)
         super().__init__(E, I, L, steps, root)
+        # Modèle déclaré (le moteur retire les travées nulles = encastrements) :
+        # nécessaire pour reconstruire les appuis dans la note de calcul.
+        self._declared_model = (list(E), list(I), list(L))
 
     def set_loads(self, point_loads=(), distrib_loads=()):
         """
