@@ -43,10 +43,28 @@ def test_envelopes_require_loads(lib):
 
 
 # ---------------------------------------------------------------- lifecycle
-def test_constructor_computes_nothing(lib):
+def test_constructor_computes_nothing_and_results_compute_on_access(lib):
+    """2.0 : le constructeur ne calcule rien ; lire un résultat le calcule."""
     out = lib.Output(E=[210e9], I=[8e-4], L=[10.0], steps=1.0)
     assert not out.is_computed
-    assert len(out.BM) == 0
+    assert len(out.BM[0]) == len(out.span_node_positions[0])   # BM[travée][section][…]
+    assert out.is_computed
+
+
+def test_envelopes_compute_on_access_and_follow_new_loads(lib):
+    out = lib.Output(E=[210e9], I=[8e-4], L=[10.0], steps=0.5)
+    out.set_loads(point_loads=[lib.Load(intensity=[100.0], length=[0.0], name="P")], distrib_loads=[])
+    assert not out.is_load_envelopes_computed
+    assert out.bending_moment_general_envelope["point_load"]["max"]["value"] == pytest.approx(250.0)
+    out.set_loads(point_loads=[lib.Load(intensity=[200.0], length=[0.0], name="P")], distrib_loads=[])
+    assert out.bending_moment_general_envelope["point_load"]["max"]["value"] == pytest.approx(500.0)
+
+
+def test_analyze_does_everything(lib):
+    out = lib.Output(E=[210e9], I=[8e-4], L=[10.0], steps=0.5)
+    out.set_loads(point_loads=[lib.Load(intensity=[100.0], length=[0.0], name="P")], distrib_loads=[])
+    out.analyze()
+    assert out.is_computed and out.is_load_envelopes_computed
 
 
 def test_compute_is_idempotent(lib):

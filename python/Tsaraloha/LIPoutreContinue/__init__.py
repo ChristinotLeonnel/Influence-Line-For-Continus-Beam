@@ -426,6 +426,35 @@ class Output(_RawOutput):
         # Modèle déclaré (le moteur retire les travées nulles = encastrements) :
         # nécessaire pour reconstruire les appuis dans la note de calcul.
         self._declared_model = (list(E), list(I), list(L))
+        self._loads_set = False
+
+    # ── Calcul automatique (2.0) ────────────────────────────────────────────
+    # Lire un résultat déclenche le calcul nécessaire s'il n'a pas encore été
+    # fait : compute() pour les lignes d'influence, compute_load_envelopes()
+    # pour les enveloppes (si set_loads() a été appelé). Le constructeur, lui,
+    # ne calcule toujours rien, et compute() reste disponible (force=True).
+    _NEEDS_COMPUTE = frozenset({
+        "BM", "SF", "Def", "Rot", "X", "shear_force_all_abscissa", "support_moment", "support_reaction",
+        "node_lengths", "influence_line_extrema", "bending_moment_max_positions", "shear_force_max_positions",
+        "deflection_max_positions", "rotation_max_positions", "support_moment_max_positions",
+        "support_reaction_max_positions",
+    })
+    _NEEDS_ENVELOPES = frozenset({
+        "bending_moment_general_envelope", "shear_force_general_envelope", "deflection_general_envelope",
+        "rotation_general_envelope", "bending_moment_critical_envelope", "shear_force_critical_envelope",
+        "deflection_critical_envelope", "rotation_critical_envelope", "section_envelopes",
+        "support_reaction_envelopes",
+    })
+
+    def __getattribute__(self, name):
+        if name in Output._NEEDS_COMPUTE:
+            if not _RawOutput.is_computed.__get__(self):
+                _RawOutput.compute(self)
+        elif name in Output._NEEDS_ENVELOPES:
+            if object.__getattribute__(self, "__dict__").get("_loads_set") and \
+                    not _RawOutput.is_load_envelopes_computed.__get__(self):
+                _RawOutput.compute_load_envelopes(self)
+        return super().__getattribute__(name)
 
     def set_loads(self, point_loads=(), distrib_loads=()):
         """
@@ -466,6 +495,7 @@ class Output(_RawOutput):
                 )
         self._user_point_loads = point_loads
         self._user_distrib_loads = distrib_loads
+        self._loads_set = True
         return super().set_loads(point_loads, distrib_loads)
 
     def export_load_envelopes(self):

@@ -73,6 +73,16 @@ void Output::compute(bool force)
 }
 
 // =============================================================================
+//  analyze() — calcul complet en un appel : lignes d'influence, puis
+//  enveloppes si des charges ont été fournies par setLoads().
+// =============================================================================
+void Output::analyze()
+{
+    compute();
+    if (hasUserLoads_) computeLoadEnvelopes();
+}
+
+// =============================================================================
 //  Réactions d'appui — lignes d'influence exactes déduites des moments sur
 //  appuis. Charge unité (vers le bas) à l'abscisse locale a de la travée k,
 //  moments d'extrémité M_k, M_{k+1} (positifs = fibre inférieure tendue) :
@@ -183,6 +193,7 @@ void Output::setLoads(const std::vector<load>& pointLoads,
     userPointLoads_   = pointLoads;
     userDistribLoads_ = distribLoads;
     hasUserLoads_      = true;
+    loadEnvelopesComputed_ = false;   // nouvelles charges : enveloppes à recalculer
 }
 
 // =============================================================================

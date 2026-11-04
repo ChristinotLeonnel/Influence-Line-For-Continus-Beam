@@ -662,6 +662,8 @@ Load(intensity=[45.0, 10.0, 25.0], length=[0.0, 3.0, 5.0, 2.0], name="UDL2")
           py::arg("force") = false)
       .def_property_readonly("is_computed",
                              [](PyOutput &s) { return s.impl.isComputed(); })
+      .def("analyze", [](PyOutput &s) { s.impl.analyze(); },
+           "Calcul complet : lignes d'influence puis enveloppes (si set_loads() a été appelé).")
       // ── Étape 2 : export JSON (explicite) ────────────────────────────
       .def("export_critical_values",
            [](PyOutput &s) { s.impl.exportCriticalValues(); })

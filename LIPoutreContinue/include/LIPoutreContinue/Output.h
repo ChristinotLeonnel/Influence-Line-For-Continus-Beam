@@ -49,6 +49,14 @@ public:
 
     bool isComputed() const { return computed_; }
 
+    // Calcul complet en un appel (2.0) : compute() puis, si setLoads() a été
+    // appelé, computeLoadEnvelopes(). Idempotent. Usage typique :
+    //     Output out(E, I, L, h);
+    //     out.setLoads({camion}, {voie});
+    //     out.analyze();
+    void analyze();
+    bool hasLoads() const { return hasUserLoads_; }
+
     // ── Étape 2 : export JSON — chaque méthode appelle compute() si besoin,
     //    mais aucune n'est appelée automatiquement pour vous. ────────────────
     void exportCriticalValues();                      // 03_Critical_Values/

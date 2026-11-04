@@ -30,10 +30,10 @@ CMake ≥ 3.18.
 ```python
 import Tsaraloha.LIPoutreContinue as tsa
 
-beam = tsa.Beam()
-beam.add_span(length=10.0, E=210e9, I=8e-4)          # E [Pa], I [m⁴], L [m]
-beam.add_span(length=12.0, E=210e9, I=1.2e-3)
-beam.add_support(0.0, "pin").add_support(10.0, "roller").add_support(22.0, "roller")
+beam = tsa.Beam.continuous([10.0, 12.0], E=210e9, I=[8e-4, 1.2e-3])   # E [Pa], I [m⁴], L [m]
+# équivalent détaillé :
+#   beam = tsa.Beam().add_span(10.0, 210e9, 8e-4).add_span(12.0, 210e9, 1.2e-3)
+#   beam.add_support(0.0, "pin").add_support(10.0, "roller").add_support(22.0, "roller")
 
 truck = tsa.PointLoadTrain(axles=[60, 120, 120], spacings=[1.5, 4.5], name="Camion")   # kN, m
 lane  = tsa.DistributedLoad(q=9.0, length=10.0, name="Voie")                            # kN/m, m
@@ -46,13 +46,19 @@ print(res.minimum_bending_moment)       # moment sur appui
 env = res.envelope("M")                 # env.x, env.max, env.min (numpy)
 res.reactions()                         # R max / min par appui [kN]
 res.influence_line("M", x=16.0)         # (positions, valeurs par kN, section)
-res.plot("M")                           # matplotlib
+res.plot("M")                           # enveloppe annotée (matplotlib)
+res.plot_critical("M")                  # charges à la position critique + ligne d'influence
+res.dashboard()                         # synthèse : poutre, M/V/w, réactions, extrêmes
 res.report("note.html", convergence=True)   # note de calcul (ou .pdf)
 res.to_json("resultats.json")
 ```
 
-Exemples complets : [`exemple/ex00_demarrage_rapide.py`](exemple/ex00_demarrage_rapide.py) et
-[`exemple/ex07_pont_beton_convois.py`](exemple/ex07_pont_beton_convois.py).
+Exemples complets :
+- [`exemple/ex00_demarrage_rapide.py`](exemple/ex00_demarrage_rapide.py) : démarrage rapide ;
+- [`exemple/ex07_pont_beton_convois.py`](exemple/ex07_pont_beton_convois.py) : plusieurs convois, contrôles de validité ;
+- [`exemple/ex08_dimensionnement_poutre_roulement.py`](exemple/ex08_dimensionnement_poutre_roulement.py) :
+  **dimensionnement complet** d'une poutre de roulement (choix du profilé, combinaisons ELU/ELS,
+  charges permanentes par aire des lignes d'influence, soulèvement des appuis).
 
 ## Modèle, unités et conventions
 
@@ -76,12 +82,12 @@ L'API historique reste disponible et produit les mêmes nombres que l'API de hau
 
 ```python
 out = tsa.Output(E=[210e9] * 2, I=[8e-4, 1.2e-3], L=[10.0, 12.0], steps=0.25)
-out.compute()                                   # lignes d'influence en mémoire
+out.compute()                                   # facultatif : lire un résultat le calcule
 out.BM, out.SF, out.Def, out.Rot                # [travée][section][charge]
 out.support_reaction                            # [appui][charge]
 out.set_loads(point_loads=[tsa.Load(intensity=[60, 120], length=[0.0, 1.5], name="T")],
               distrib_loads=[tsa.Load(intensity=[9.0], length=[0.0, 10.0], name="q")])
-out.compute_load_envelopes()
+out.analyze()                                   # ou compute_load_envelopes() ; facultatif aussi
 out.bending_moment_general_envelope["combined_load"]["max"]   # {value, span, section, section_x, load}
 out.section_envelopes["bending_moment"]                       # courbes E⁺(x), E⁻(x)
 out.export_all()                                              # JSON (si root fourni)

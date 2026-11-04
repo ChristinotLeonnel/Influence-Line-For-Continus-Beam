@@ -33,6 +33,9 @@ sont vérifiées exactes à 10⁻¹⁵ par rapport à une résolution directe de
 - `Loading.section_envelopes` : enveloppes E⁺ et E⁻ en chaque section ; `Loading.compute_at_section(span, section)` ; argument `scale`.
 - Le JSON `04_Load_Envelopes/*` contient les blocs `max` et `min`. Les positions non définies sont écrites `null`.
 - Validation des entrées dans le cœur C++ (`steps > 0`, E·I > 0, tailles cohérentes).
+- **Graphiques** (module `plot`, réécrit) : `plot.dashboard(res)`, `plot.envelope(res, q)` (extrêmes annotés, M côté fibre tendue), `plot.critical_configuration(res, q)` (charges dessinées à leur position la plus défavorable sur la ligne d'influence de la section critique), `plot.influence_line(res, q, x)`, `plot.reactions(res)`, `plot.beam(res)`. Raccourcis `Results.plot()`, `plot_critical()`, `plot_influence_line()`, `dashboard()`, `show()`. Les fonctions 1.x (`plot_output_full`, …) sont déplacées dans `_plot_legacy` et émettent un `DeprecationWarning`.
+- `Beam.continuous(lengths, E, I, left="pin", right="pin")` : poutre continue en une ligne (E et I scalaires ou par travée ; 'fixed' pour un encastrement d'extrémité).
+- `Output.analyze()` (C++ et Python) : lignes d'influence puis enveloppes en un appel.
 
 ### Note de calcul (réécrite)
 - `Results.report(path)` : note HTML autonome (figures SVG), ou PDF via weasyprint. Sections : page de garde, structure, géométrie et matériaux, appuis, hypothèses, équations (Clapeyron, foyers, réactions), méthode et discrétisation, charges, lignes d'influence, enveloppes, positions critiques, réactions, **vérifications exécutées** (ΣR = 1, ΣR·x = x, Maxwell-Betti, continuité, flèche nulle aux appuis), étude de convergence optionnelle (`convergence=True`), conclusion et limites.
@@ -45,6 +48,7 @@ sont vérifiées exactes à 10⁻¹⁵ par rapport à une résolution directe de
 - `Loading.one_rectangular_load(begin, end)` intègre jusqu'au nœud `end` **inclus**.
 - Le détail de la charge combinée (`load` / `addition`) a la même forme que les autres : `{nom: {value, Position, alpha}}`. Les anciennes clés `"<intensité> <rang>"` sont supprimées.
 - Les charges portant le même nom sont distinguées (`"Camion #2"`).
+- `Output` : lire un résultat (`BM`, `support_reaction`, `section_envelopes`, …) déclenche le calcul nécessaire s'il n'a pas été fait ; `compute()` / `compute_load_envelopes()` deviennent facultatifs. Le constructeur ne calcule toujours rien. Un nouvel appel à `set_loads()` invalide les enveloppes, qui sont recalculées à la lecture suivante (auparavant, les anciennes enveloppes restaient en place).
 
 ### Performance
 - Enveloppes : **×18 (N = 404) à ×29 (N = 1004)**, avec une recherche désormais exacte. Pic mémoire −38 à −43 % : `Loading` n'effectue plus de copie du tenseur N² (constructeur `BorrowCurves`). Les deux versions ont été mesurées alternativement, sur le même poste et dans la même session, voir [docs/audit/benchmarks.md](docs/audit/benchmarks.md).
@@ -56,7 +60,7 @@ sont vérifiées exactes à 10⁻¹⁵ par rapport à une résolution directe de
 
 ### Nettoyage et dépréciations
 - Supprimés : brouillons `exemple/teste.py`, `exemple1.py`, `exemple2.py` (réécrit en `ex07_pont_beton_convois.py`), `exemple3.py` ; sorties périmées `resultats_ex03/`.
-- `ex05_visualisation_complete.py` renommé en `ex06_…`. Nouveaux exemples : `ex00_demarrage_rapide.py`, `ex07_pont_beton_convois.py`.
+- Exemples : les scripts 1.x `ex01` à `ex06` sont supprimés. Restent `ex00_demarrage_rapide.py` et `ex07_pont_beton_convois.py`, et un nouveau cas de dimensionnement complet est ajouté : `ex08_dimensionnement_poutre_roulement.py`.
 - Dépréciés (suppression en 3.0) : `UpdatePositions` (flux fichier texte 1.x), `parseVector`, `LoadParser`, `getValue` (C++).
 - Note de calcul : nouveau contrôle « Domaine de validité » (|w|max / L ≤ 1/100). Il signale les données hors du domaine des petits déplacements au lieu de les accepter sans rien dire.
 

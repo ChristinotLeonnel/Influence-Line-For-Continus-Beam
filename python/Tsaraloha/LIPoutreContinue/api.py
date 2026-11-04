@@ -311,28 +311,32 @@ class Results:
         path.write_text(json.dumps(_clean(self.to_dict()), indent=2, ensure_ascii=False), encoding="utf-8")
         return path
 
+    # -- graphiques (voir le module plot) ------------------------------------
     def plot(self, quantity: str = "M", kind: str = "combined", ax=None):
-        """Trace les enveloppes de ``quantity`` (nécessite matplotlib)."""
-        from .plot import _require_matplotlib
-        _require_matplotlib()
+        """Enveloppes annotées de ``quantity`` ('M', 'V', 'w', 'theta')."""
+        from . import plot
+        return plot.envelope(self, quantity, kind, ax)
+
+    def plot_influence_line(self, quantity: str = "M", x: float = 0.0, ax=None):
+        """Ligne d'influence de ``quantity`` à la section la plus proche de ``x``."""
+        from . import plot
+        return plot.influence_line(self, quantity, x, ax)
+
+    def plot_critical(self, quantity: str = "M", which: str = "governing"):
+        """Charges dessinées à leur position la plus défavorable + ligne d'influence."""
+        from . import plot
+        return plot.critical_configuration(self, quantity, which)
+
+    def dashboard(self):
+        """Figure de synthèse : poutre, enveloppes M/V/w, réactions, extrêmes."""
+        from . import plot
+        return plot.dashboard(self)
+
+    def show(self):
+        """Affiche le tableau de bord (fenêtre matplotlib)."""
         import matplotlib.pyplot as plt
-        e = self.envelope(quantity, kind)
-        if ax is None:
-            _, ax = plt.subplots(figsize=(11, 4.5))
-        ax.fill_between(e.x, e.min, e.max, color="#4c78a8", alpha=0.15, linewidth=0)
-        ax.plot(e.x, e.max, color="#c0392b", label=f"max ({e.max_extremum.value:.3g} {e.unit} à x = {e.max_extremum.x:.2f} m)")
-        ax.plot(e.x, e.min, color="#2471a3", label=f"min ({e.min_extremum.value:.3g} {e.unit} à x = {e.min_extremum.x:.2f} m)")
-        for xs in self.support_positions:
-            ax.axvline(xs, color="0.6", linewidth=0.8, linestyle=":")
-        ax.axhline(0, color="0.3", linewidth=0.8)
-        if e.quantity == "M":
-            ax.invert_yaxis()   # convention des diagrammes de moments (M > 0 vers le bas)
-        ax.set_xlabel("x [m]")
-        ax.set_ylabel(f"{_QUANTITIES[e.quantity][3]} [{e.unit}]")
-        ax.set_title(f"Enveloppe — {_QUANTITIES[e.quantity][3]} ({kind})")
-        ax.legend(loc="best", fontsize=9)
-        ax.grid(alpha=0.3)
-        return ax
+        self.dashboard()
+        plt.show()
 
     def report(self, path: Union[str, Path] = "note_de_calcul.html", **kwargs) -> Path:
         """Note de calcul HTML (ou PDF si ``path`` se termine par .pdf)."""
@@ -366,6 +370,31 @@ class Beam:
     def __init__(self):
         self.spans: list[_Span] = []
         self.supports: dict[float, str] = {}
+
+    @classmethod
+    def continuous(cls, lengths: Sequence[float], E: Union[float, Sequence[float]],
+                   I: Union[float, Sequence[float]], *, left: str = "pin", right: str = "pin") -> "Beam":
+        """Poutre continue en une ligne : appuis simples à chaque extrémité de
+        travée ; ``left`` / ``right`` = 'pin' ou 'fixed' pour les extrémités.
+
+            >>> beam = Beam.continuous([10, 12, 10], E=210e9, I=8e-4)
+            >>> beam = Beam.continuous([8, 8], E=30e9, I=[0.02, 0.03], left="fixed")
+        """
+        lengths = list(lengths)
+        n = len(lengths)
+        Es = [E] * n if np.isscalar(E) else list(E)
+        Is = [I] * n if np.isscalar(I) else list(I)
+        if len(Es) != n or len(Is) != n:
+            raise ValueError(f"{n} travée(s) : E et I doivent être un nombre ou une liste de {n} valeurs.")
+        b = cls()
+        for L, e, i in zip(lengths, Es, Is):
+            b.add_span(L, e, i)
+        bounds = b.boundaries
+        for x in bounds[1:-1]:
+            b.add_support(x, "roller")
+        b.add_support(bounds[0], left)
+        b.add_support(bounds[-1], right if right != "pin" else "roller")
+        return b
 
     # -- construction ----------------------------------------------------------
     def add_span(self, length: float, E: float, I: float) -> "Beam":

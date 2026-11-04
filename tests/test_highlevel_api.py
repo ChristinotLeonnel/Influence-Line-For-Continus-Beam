@@ -100,6 +100,51 @@ def test_plot_returns_axes():
     assert ax.get_xlabel() == "x [m]"
 
 
+@pytest.mark.parametrize("with_loads", [True, False])
+def test_all_plots_render(with_loads):
+    pytest.importorskip("matplotlib")
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from Tsaraloha.LIPoutreContinue import plot
+
+    loads = [tsa.PointLoadTrain([60, 120], [1.5], name="Camion"), tsa.DistributedLoad(q=9.0, length=6.0, name="Voie")]
+    res = two_spans().analyze(step=0.5, loads=loads if with_loads else ())
+    plot.beam(res)
+    plot.influence_line(res, "V", x=10.0)
+    res.plot_influence_line("w", x=5.0)
+    fig = res.dashboard()
+    assert len(fig.axes) >= 3
+    if with_loads:
+        for q in ("M", "V", "w", "theta"):
+            res.plot(q)
+        assert len(res.plot_critical("M").axes) == 2
+        plot.reactions(res)
+    plt.close("all")
+
+
+def test_legacy_plot_functions_warn():
+    from Tsaraloha.LIPoutreContinue import plot
+    assert callable(plot.plot_output_full)
+    with pytest.warns(DeprecationWarning):
+        try:
+            plot.plot_output_full()
+        except TypeError:
+            pass
+
+
+def test_beam_continuous_shortcut():
+    b = tsa.Beam.continuous([10.0, 12.0], E=210e9, I=[8e-4, 1.2e-3])
+    assert b.supports == {0.0: "pin", 10.0: "roller", 22.0: "roller"}
+    res = b.analyze(step=0.5, loads=[tsa.PointLoadTrain([100.0, 100.0], [3.0])])
+    ref = two_spans().analyze(step=0.5, loads=[tsa.PointLoadTrain([100.0, 100.0], [3.0])])
+    assert res.maximum_bending_moment.value == ref.maximum_bending_moment.value
+    fixed = tsa.Beam.continuous([8.0], E=30e9, I=0.02, left="fixed", right="fixed")
+    assert fixed.supports == {0.0: "fixed", 8.0: "fixed"}
+    with pytest.raises(ValueError):
+        tsa.Beam.continuous([8.0, 8.0], E=[30e9], I=0.02)
+
+
 # ---------------------------------------------------------------- errors
 def test_errors_are_explicit():
     with pytest.raises(ValueError, match="aucune travée"):
