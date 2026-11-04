@@ -1,32 +1,70 @@
 #include "LIPoutreContinue/core/Isostatique.h"
 
-// FIX: steps par valeur (plus par référence)
+#include <cmath>
+#include <stdexcept>
+#include <string>
+
+// =============================================================================
+//  Maillage déterministe (défaut N8, docs/audit/03_numerique.md).
+//
+//  Les nœuds sont x_i = i·h calculés par MULTIPLICATION (et non par
+//  accumulation `x += h`, qui dérive de quelques ulp à chaque pas). Le dernier
+//  nœud intérieur est abandonné s'il est à moins de 1e-9·h de L : sans cela,
+//  L = 6, h = 0,1 produisait un nœud à 5,999999999999995 puis L, soit un
+//  élément de 5e-15 m. Si h ne divise pas L, le dernier élément est plus
+//  court que h (comportement inchangé).
+// =============================================================================
+static std::vector<double> buildSpanMesh(double L, double h)
+{
+    std::vector<double> x;
+    if (L == 0.0) {             // travée nulle = encastrement (un seul nœud)
+        x.push_back(0.0);
+        return x;
+    }
+    const double tol = 1e-9 * h;
+    const size_t n = static_cast<size_t>(std::ceil(L / h - 1e-9)); // nombre d'éléments
+    x.reserve(n + 1);
+    for (size_t i = 0; i < n; ++i) {
+        const double xi = static_cast<double>(i) * h;
+        if (xi >= L - tol) break;
+        x.push_back(xi);
+    }
+    x.push_back(L);
+    return x;
+}
+
 Isostatique::Isostatique(double E, double I, double L, double steps)
     : E(E), I(I), L(L), steps(steps)
 {
-    // FIX: calcul correct du nombre de noeuds pour reserve()
-    size_t estimatedNodes = static_cast<size_t>(L / steps) + 2;
-    nodePositions.reserve(estimatedNodes);
+    if (!(std::isfinite(steps) && steps > 0.0))
+        throw std::invalid_argument("Isostatique: le pas 'steps' doit être un réel strictement positif, reçu "
+                                    + std::to_string(steps) + ".");
+    if (!(std::isfinite(L) && L >= 0.0))
+        throw std::invalid_argument("Isostatique: la longueur L doit être un réel positif ou nul (0 = encastrement), reçu "
+                                    + std::to_string(L) + ".");
+    if (L > 0.0 && !(std::isfinite(E * I) && E > 0.0 && I > 0.0))
+        throw std::invalid_argument("Isostatique: E et I doivent être strictement positifs pour une travée de longueur non nulle.");
 
-    // Generate node positions
-    double pas = 0;
-    while (pas < L) {
-        nodePositions.push_back(pas);
-        pas += steps;
-    }
-    nodePositions.push_back(L);
+    nodePositions = buildSpanMesh(L, steps);
 
     // Pre-calculate coefficients
     const double EI = E * I;
     const double EI_L = EI * L;
 
-    a = L / (3 * EI);
+    // Travée nulle (encastrement) : souplesse nulle, quel que soit E·I
+    // (évite 0/0 si l'appelant fournit E = 0 ou I = 0 pour cette travée).
+    a = (L == 0.0) ? 0.0 : L / (3 * EI);
     c = a;
-    b = L / (6 * EI);
+    b = (L == 0.0) ? 0.0 : L / (6 * EI);
 
     Omega_Second.reserve(nodePositions.size());
     Omega_Prime.reserve(nodePositions.size());
 
+    if (L == 0.0) {                       // pas de ligne d'influence propre
+        Omega_Second.push_back(0.0);
+        Omega_Prime.push_back(0.0);
+        return;
+    }
     for (double pos : nodePositions) {
         Omega_Second.push_back(pos * (L - pos) * (L + pos) / (6 * EI_L));
         Omega_Prime.push_back(-pos * (L - pos) * (2 * L - pos) / (6 * EI_L));

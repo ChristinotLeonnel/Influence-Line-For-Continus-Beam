@@ -1,491 +1,435 @@
 #include "LIPoutreContinue/loading/Loading.h"
 #include "LIPoutreContinue/Utils.h"
-#include "LIPoutreContinue/loading/Input.h"
 
-#include <iostream>
-#include <map>
-#include <sstream>
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <stdexcept>
+#include <string>
 
-Loading::Loading(std::vector<std::vector<std::vector<double>>> CURVES,
-                 std::vector<double> POSITION,
-                 std::vector<std::vector<double>> SpanNodePositions,
-                 const std::vector<double> &spans_in,
-                 const std::vector<load> &pointLoads,
-                 const std::vector<load> &distribLoads)
-    :
+// Voir Loading.h pour le modèle mathématique et docs/audit/03_numerique.md
+// pour les défauts corrigés (N2–N7, N9).
 
-      Configuration(), SpanNodePositions(SpanNodePositions), CURVES(CURVES),
-      POSITION(POSITION) {
-  spans = spans_in;
-  Point_LOAD = pointLoads;
-  Rectangulare_LOAD = distribLoads;
+namespace {
 
-  std::vector<double> CopieSpan = spans;
-  std::vector<size_t> LZeroIdx;
-  for (size_t i = 0; i < spans.size(); ++i)
-    if (spans[i] == 0)
-      LZeroIdx.push_back(i);
+constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
 
-  removeByIndices(CopieSpan, LZeroIdx);
+// Abscisses relatives des essieux (count = n) ou des bornes de tronçons
+// (count = n + 1) : d0 = length[0], d_i = d_{i-1} + length[i].
+// UNE SEULE convention pour tous les calculs (défaut N4).
+std::vector<double> cumulativeOffsets(const std::vector<double>& length, size_t count, const char* what)
+{
+    if (count == 0) return {};
+    if (length.size() < count)
+        throw std::invalid_argument(std::string("Loading: charge ") + what + " — 'length' contient "
+            + std::to_string(length.size()) + " valeur(s), " + std::to_string(count) + " attendue(s).");
+    std::vector<double> d(count);
+    d[0] = length[0];
+    for (size_t i = 1; i < count; ++i) d[i] = d[i - 1] + length[i];
+    for (double v : d)
+        if (!std::isfinite(v)) throw std::invalid_argument("Loading: 'length' contient une valeur non finie.");
+    return d;
+}
 
-  std::vector<std::map<std::string, std::map<std::string, double>>> first;
-  std::vector<double> ValuesPerSpan;
-  double val = 0;
-
-  for (size_t span = 0; span < CopieSpan.size(); span++) {
-
-    std::vector<double> ValuesPerSection;
-    std::vector<std::map<std::string, std::map<std::string, double>>> Second;
-
-    for (size_t section = 0; section < SpanNodePositions[span].size();
-         section++) {
-
-      val = 0;
-      std::map<std::string, std::map<std::string, double>> TT;
-
-      for (auto &k : Point_LOAD) {
-        std::map<std::string, double> RR;
-        Position1D lo = PluralPointLoad(k.Intensity, k.Length, span, section);
-        val += lo.value;
-        RR["alpha"] = static_cast<double>(lo.max_position);
-        RR["value"] = lo.value;
-        // Position physique de la 1ère charge = first_wall + length[0]
-        // POSITION[max_position] = first_wall optimal → +length[0] donne la
-        // vraie position
-        RR["Position"] = POSITION[lo.max_position];
-        TT[k.name] = RR;
-      }
-      ValuesPerSection.push_back(val);
-      Second.push_back(TT);
+// Renomme les doublons ("Camion", "Camion #2", …) pour que chaque charge ait
+// sa propre entrée dans les détails de résultat.
+std::vector<std::string> uniqueNames(const std::vector<load>& loads, std::vector<std::string> taken = {})
+{
+    std::vector<std::string> out;
+    for (const auto& l : loads) {
+        std::string name = l.name.empty() ? std::string("charge") : l.name;
+        std::string candidate = name;
+        for (int k = 2; std::find(taken.begin(), taken.end(), candidate) != taken.end(); ++k)
+            candidate = name + " #" + std::to_string(k);
+        taken.push_back(candidate);
+        out.push_back(candidate);
     }
-    auto maximum_section = MaxValueInVector(ValuesPerSection);
-    ValuesPerSpan.push_back(maximum_section);
-    Point_load.section = Indice_of(ValuesPerSection, maximum_section);
-    first.push_back(Second[Point_load.section]);
-  }
-  double maximum_span = MaxValueInVector(ValuesPerSpan);
+    return out;
+}
 
-  Point_load.maximum_value = maximum_span;
-  Point_load.span = Indice_of(ValuesPerSpan, maximum_span);
-  Point_load.load = first[Point_load.span];
+} // namespace
 
-  ValuesPerSpan = {};
-  first = {};
-  for (size_t span = 0; span < CopieSpan.size(); span++) {
+// =============================================================================
+//  Line — interpolant linéaire par morceaux, nul hors de [t.front(), t.back()]
+// =============================================================================
+double Loading::Line::right(double q) const
+{
+    if (q < t.front() || q >= t.back()) return 0.0;
+    const size_t j = static_cast<size_t>(std::upper_bound(t.begin(), t.end(), q) - t.begin()) - 1; // t_j <= q < t_{j+1}
+    const double h = t[j + 1] - t[j];
+    return y[j] + (y[j + 1] - y[j]) * (q - t[j]) / h;
+}
 
-    std::vector<double> ValuesPerSection;
-    std::vector<std::map<std::string, std::map<std::string, double>>> Second;
+double Loading::Line::left(double q) const
+{
+    if (q <= t.front() || q > t.back()) return 0.0;
+    const size_t j = static_cast<size_t>(std::lower_bound(t.begin(), t.end(), q) - t.begin()); // t_{j-1} < q <= t_j
+    const double h = t[j] - t[j - 1];
+    return y[j - 1] + (y[j] - y[j - 1]) * (q - t[j - 1]) / h;
+}
 
-    for (size_t section = 0; section < SpanNodePositions[span].size();
-         section++) {
-
-      val = 0;
-      std::map<std::string, std::map<std::string, double>> TT;
-
-      for (auto &k : Rectangulare_LOAD) {
-        std::map<std::string, double> RR;
-        Position1D lo =
-            PluralRectangularLoad(k.Intensity, k.Length, span, section);
-        val += lo.value;
-        RR["alpha"] = static_cast<double>(lo.max_position);
-        RR["value"] = lo.value;
-        // Position physique du début du 1er segment = first_wall + length[0]
-        RR["Position"] = POSITION[lo.max_position];
-        TT[k.name] = RR;
-      }
-      ValuesPerSection.push_back(val);
-      Second.push_back(TT);
-    }
-    auto maximum_section = MaxValueInVector(ValuesPerSection);
-    ValuesPerSpan.push_back(maximum_section);
-    Rectangular_load.section = Indice_of(ValuesPerSection, maximum_section);
-    first.push_back(Second[Rectangular_load.section]);
-  }
-  maximum_span = MaxValueInVector(ValuesPerSpan);
-
-  Rectangular_load.maximum_value = maximum_span;
-  Rectangular_load.span = Indice_of(ValuesPerSpan, maximum_span);
-  Rectangular_load.load = first[Rectangular_load.span];
-
-  first = {};
-  ValuesPerSpan = {};
-  std::vector<double>
-      PositionsPerSpan;                // position optimale du convoi par travée
-  std::vector<size_t> SectionsPerSpan; // section critique par travée
-
-  for (size_t span = 0; span < CopieSpan.size(); span++) {
-
-    std::vector<double> ValuesPerSection;
-    std::vector<double> PositionsPerSection;
-    std::vector<std::map<std::string, std::map<std::string, double>>> Second;
-
-    for (size_t section = 0; section < SpanNodePositions[span].size();
-         section++) {
-      CombineLoadPosition LO = CombinedLoad(span, section);
-      ValuesPerSection.push_back(LO.value);
-      PositionsPerSection.push_back(
-          LO.position); // POSITION[IJ] pour cette section
-      Second.push_back(LO.Addition);
-    }
-    auto maximum_section = MaxValueInVector(ValuesPerSection);
-    size_t critical_sec = Indice_of(ValuesPerSection, maximum_section);
-
-    ValuesPerSpan.push_back(maximum_section);
-    PositionsPerSpan.push_back(
-        PositionsPerSection[critical_sec]); // position exacte pour cette travée
-    SectionsPerSpan.push_back(critical_sec);
-    first.push_back(Second[critical_sec]);
-  }
-  maximum_span = MaxValueInVector(ValuesPerSpan);
-
-  Combined_load.maximum_value = maximum_span;
-  Combined_load.span = Indice_of(ValuesPerSpan, maximum_span);
-  Combined_load.section = SectionsPerSpan[Combined_load.span];
-  Combined_load.position =
-      PositionsPerSpan[Combined_load.span]; // position exacte de la travée
-                                            // critique
-  Combined_load.load = first[Combined_load.span];
+double Loading::Line::integral(double q) const
+{
+    if (q <= t.front()) return 0.0;
+    if (q >= t.back()) return C.back();
+    const size_t j = static_cast<size_t>(std::upper_bound(t.begin(), t.end(), q) - t.begin()) - 1;
+    const double h = t[j + 1] - t[j];
+    const double fq = y[j] + (y[j + 1] - y[j]) * (q - t[j]) / h;
+    return C[j] + 0.5 * (q - t[j]) * (y[j] + fq);
 }
 
 // =============================================================================
-//  MetersToPosition — Fix bug 1 & 2
-//
-//  Retourne l'indice dans POSITION le plus proche de PositionMeters
-//  (arrondi au point de discrétisation le plus proche, pas seulement UP).
-//  Retourne POSITION.size() (hors borne) si la valeur est strictement en
-//  dehors de [POSITION.front(), POSITION.back()] — valeur sentinelle
-//  distincte de 0 pour lever l'ambiguïté avec la position x=0.
+//  Construction
 // =============================================================================
-size_t Loading::MetersToPosition(double PositionMeters) {
-  // Hors borne → sentinelle SIZE (jamais confondue avec indice 0)
-  if (PositionMeters < POSITION.front() || PositionMeters > POSITION.back())
-    return POSITION.size(); // sentinelle "invalide"
+Loading::Loading(std::vector<std::vector<std::vector<double>>> CURVES_in,
+                 std::vector<double> POSITION_in,
+                 std::vector<std::vector<double>> SpanNodePositions_in,
+                 const std::vector<double>& spans_in,
+                 const std::vector<load>& pointLoads,
+                 const std::vector<load>& distribLoads,
+                 double scale)
+    : Configuration(),
+      SpanNodePositions(std::move(SpanNodePositions_in)),
+      CURVES(std::move(CURVES_in)),
+      POSITION(std::move(POSITION_in)),
+      scale_(scale)
+{
+    spans = spans_in;
+    Point_LOAD = pointLoads;
+    Rectangulare_LOAD = distribLoads;
 
-  // Recherche du point de grille le plus proche (arrondi au plus près)
-  size_t idx = 0;
-  double minDist = std::abs(POSITION[0] - PositionMeters);
+    if (POSITION.size() < 2)
+        throw std::invalid_argument("Loading: 'position' doit contenir au moins 2 abscisses.");
+    if (!std::is_sorted(POSITION.begin(), POSITION.end()))
+        throw std::invalid_argument("Loading: 'position' doit être croissante.");
+    if (CURVES.size() != SpanNodePositions.size())
+        throw std::invalid_argument("Loading: 'curves' et 'span_node_positions' doivent avoir le même nombre de travées.");
 
-  for (size_t i = 1; i < POSITION.size(); ++i) {
-    double dist = std::abs(POSITION[i] - PositionMeters);
-    if (dist < minDist) {
-      minDist = dist;
-      idx = i;
+    size_t offset = 0;
+    for (size_t s = 0; s < SpanNodePositions.size(); ++s) {
+        if (CURVES[s].size() != SpanNodePositions[s].size())
+            throw std::invalid_argument("Loading: travée " + std::to_string(s)
+                + " — nombre de sections de 'curves' différent de 'span_node_positions'.");
+        spanOffset_.push_back(offset);
+        offset += SpanNodePositions[s].size();
     }
-    // Optimisation : dès que la distance repart en hausse on peut sortir
-    // (POSITION est trié en ordre croissant)
-    if (POSITION[i] > PositionMeters + minDist)
-      break;
-  }
-  return idx;
+    if (offset != POSITION.size())
+        throw std::invalid_argument("Loading: 'position' doit compter autant d'abscisses que de nœuds au total ("
+            + std::to_string(offset) + "), reçu " + std::to_string(POSITION.size()) + ".");
+
+    pointNames_ = uniqueNames(Point_LOAD);
+    rectNames_  = uniqueNames(Rectangulare_LOAD, pointNames_);
+
+    computeAll();
 }
 
-double Loading::OnePointLoad(double intensity, size_t span, size_t section,
-                             size_t alpha) {
-  if (alpha >= CURVES[span][section].size()) {
-    std::cout << "Warning: Alpha value exceeds the maximum defined in CURVES "
-                 "for span "
-              << span << " and section " << section << ". Returning 0."
-              << std::endl;
-    return 0;
-  }
-  return CURVES[span][section][alpha] * intensity;
+size_t Loading::globalIndex(size_t span, size_t section) const
+{
+    if (span >= SpanNodePositions.size() || section >= SpanNodePositions[span].size())
+        throw std::out_of_range("Loading: indice de travée/section hors limites (travée "
+            + std::to_string(span) + ", section " + std::to_string(section) + ").");
+    return spanOffset_[span] + section;
 }
 
-Position1D Loading::PluralPointLoad(const std::vector<double> &intensity,
-                                    const std::vector<double> &length,
-                                    size_t span, size_t section) {
-  std::vector<double> VALUES;
-  double val = 0;
-  size_t compteur = 0;
-
-  // Calcul des positions successives relatives au début du convoi
-  // LengthSuccessive[k] = distance depuis le bord gauche du convoi jusqu'au
-  // début du segment k LengthSuccessive[k+1] = distance jusqu'à la fin du
-  // segment k
-  std::vector<double> LengthSuccessive;
-  double acc = length.front(); // offset initial (length[0])
-  for (size_t i = 0; i < length.size() - 1; ++i) {
-    LengthSuccessive.push_back(acc);
-    acc += length[i + 1];
-  }
-  LengthSuccessive.push_back(acc);
-  // Exemple length={0,3,5,2} → LengthSuccessive={0,3,8,10}
-
-  for (auto &first_wall : POSITION) {
-    compteur = 0;
-    val = 0;
-    for (auto &I : intensity) {
-      size_t alpha = MetersToPosition(LengthSuccessive[compteur] + first_wall);
-      // Ignorer les charges hors de la poutre (sentinelle)
-      if (alpha < POSITION.size())
-        val += OnePointLoad(I, span, section, alpha);
-      compteur += 1;
-    }
-    VALUES.push_back(val);
-  }
-  val = MaxValueInVector(VALUES);
-
-  Position1D L{Indice_of(VALUES, val), val};
-  return L;
+size_t Loading::nearestNode(double x) const
+{
+    if (!std::isfinite(x)) return 0;
+    const auto it = std::lower_bound(POSITION.begin(), POSITION.end(), x);
+    if (it == POSITION.begin()) return 0;
+    if (it == POSITION.end()) return POSITION.size() - 1;
+    const size_t j = static_cast<size_t>(it - POSITION.begin());
+    return (x - POSITION[j - 1] <= POSITION[j] - x) ? j - 1 : j;
 }
 
-double Loading::OneRectangularLoad(double intensity, size_t span,
-                                   size_t section, size_t begin, size_t end) {
-  std::vector<double> x, y;
-  for (size_t i = begin; i < end; i++) {
-    x.push_back(POSITION[i]);
-    y.push_back(CURVES[span][section][i]);
-  }
-  return trapeze(x, y) * intensity;
+// Ligne de la section (span, section). Les lignes d'effort tranchant ont une
+// valeur de plus que la grille (saut unité au droit de la section) : on
+// duplique alors l'abscisse de la section (défaut N7 — avant, les ordonnées à
+// droite de la section étaient décalées d'un nœud).
+Loading::Line Loading::makeLine(size_t span, size_t section) const
+{
+    const size_t g = globalIndex(span, section);
+    const auto& row = CURVES[span][section];
+    Line line;
+    line.t = POSITION;
+    if (row.size() == POSITION.size() + 1)
+        line.t.insert(line.t.begin() + static_cast<std::ptrdiff_t>(g) + 1, POSITION[g]);
+    else if (row.size() != POSITION.size())
+        throw std::invalid_argument("Loading: ligne d'influence de taille " + std::to_string(row.size())
+            + " incompatible avec " + std::to_string(POSITION.size()) + " abscisses.");
+
+    line.y.resize(row.size());
+    for (size_t i = 0; i < row.size(); ++i) line.y[i] = row[i] * scale_;
+
+    line.C.assign(line.t.size(), 0.0);
+    for (size_t i = 1; i < line.t.size(); ++i)
+        line.C[i] = line.C[i - 1] + 0.5 * (line.t[i] - line.t[i - 1]) * (line.y[i] + line.y[i - 1]);
+    return line;
 }
 
 // =============================================================================
-//  PluralRectangularLoad — Fix bug 3 & 4
-//
-//  Convention des positions (identique à PluralPointLoad) :
-//    length[0]          = offset de départ du convoi (distance avant le 1er
-//    segment) length[1..N]       = longueurs successives des segments
-//
-//  first_wall balaye toutes les positions X de la grille.
-//  Pour chaque position de balayage, l'offset du convoi est :
-//    segment_k_debut = first_wall + LengthSuccessive[k]
-//    segment_k_fin   = first_wall + LengthSuccessive[k+1]
-//
-//  Correction :
-//   - MetersToPosition retourne maintenant SIZE comme sentinelle (hors borne),
-//     on clip proprement begin/end dans [0, POSITION.size()-1].
-//   - On intègre uniquement la portion du segment qui se trouve sur la poutre.
-//   - La position retournée (max_position) est l'indice de first_wall optimal,
-//     soit POSITION[max_position] = x de départ du convoi → position exacte.
+//  Recherche exacte — convoi de charges ponctuelles
 // =============================================================================
-Position1D Loading::PluralRectangularLoad(const std::vector<double> &intensity,
-                                          const std::vector<double> &length,
-                                          size_t span, size_t section) {
-  // Calcul des positions successives relatives au début du convoi
-  // LengthSuccessive[k] = distance depuis le bord gauche du convoi jusqu'au
-  // début du segment k LengthSuccessive[k+1] = distance jusqu'à la fin du
-  // segment k
-  std::vector<double> LengthSuccessive;
-  double acc = length.front(); // offset initial (length[0])
-  for (size_t i = 0; i < length.size() - 1; ++i) {
-    LengthSuccessive.push_back(acc);
-    acc += length[i + 1];
-  }
-  LengthSuccessive.push_back(acc);
-  // Exemple length={0,3,5,2} → LengthSuccessive={0,3,8,10}
+Loading::Extreme Loading::pointExtreme(const Line& line, const load& l) const
+{
+    Extreme e;
+    const size_t n = l.Intensity.size();
+    if (n == 0) return e;
+    const auto d = cumulativeOffsets(l.Length, n, "ponctuelle");
 
-  std::vector<double> VALUES;
-  VALUES.reserve(POSITION.size());
-
-  for (const auto &first_wall : POSITION) {
-
-    double val = 0.0;
-
-    for (size_t k = 0; k < intensity.size(); ++k) {
-
-      double x_begin_m = LengthSuccessive[k] + first_wall;
-      double x_end_m = LengthSuccessive[k + 1] + first_wall;
-
-      // Clipping : on ignore la partie hors de la poutre
-      x_begin_m = std::max(x_begin_m, POSITION.front());
-      x_end_m = std::min(x_end_m, POSITION.back());
-
-      if (x_end_m <= x_begin_m)
-        continue; // segment entièrement hors de la poutre
-
-      size_t begin = MetersToPosition(x_begin_m);
-      size_t end = MetersToPosition(x_end_m);
-
-      // Sécurité : MetersToPosition ne retourne plus SIZE ici (x clippé),
-      // mais on garde le guard pour robustesse
-      if (begin >= POSITION.size())
-        begin = 0;
-      if (end >= POSITION.size())
-        end = POSITION.size() - 1;
-
-      if (end > begin)
-        val += OneRectangularLoad(intensity[k], span, section, begin, end);
-    }
-    VALUES.push_back(val);
-  }
-
-  double maxVal = MaxValueInVector(VALUES);
-  // max_position = indice dans POSITION du décalage first_wall optimal
-  // → POSITION[max_position] est la position exacte de départ du convoi
-  return Position1D{Indice_of(VALUES, maxVal), maxVal};
-}
-
-// =============================================================================
-//  computeCriticalSection — calcule, pour une travée donnée, la section
-//  critique et le détail de charge (point / réparti / combiné).
-//
-//  Anciennement dupliqué dans Output::exportLoadEnvelopes() (lambda
-//  computeLoadingAt) : tout le calcul de chargement vit maintenant ici,
-//  Output.cpp se contente d'appeler cette méthode et d'écrire le résultat.
-// =============================================================================
-Loading::CriticalSectionResult Loading::computeCriticalSection(size_t span) {
-  CriticalSectionResult result;
-
-  // ── Charge ponctuelle ────────────────────────────────────────────────────
-  {
-    std::vector<double> vals;
-    for (size_t sec = 0; sec < SpanNodePositions[span].size(); ++sec) {
-      double v = 0.0;
-      for (auto &k : Point_LOAD)
-        v += PluralPointLoad(k.Intensity, k.Length, span, sec).value;
-      vals.push_back(v);
-    }
-    double mv = MaxValueInVector(vals);
-    result.point.span = span;
-    result.point.section = Indice_of(vals, mv);
-    result.point.maximum_value = mv;
-    std::map<std::string, std::map<std::string, double>> TT;
-    for (auto &k : Point_LOAD) {
-      auto lo =
-          PluralPointLoad(k.Intensity, k.Length, span, result.point.section);
-      TT[k.name] = {{"alpha", (double)lo.max_position},
-                    {"value", lo.value},
-                    {"Position", POSITION[lo.max_position]}};
-    }
-    result.point.load = TT;
-  }
-
-  // ── Charge répartie ──────────────────────────────────────────────────────
-  {
-    std::vector<double> vals;
-    for (size_t sec = 0; sec < SpanNodePositions[span].size(); ++sec) {
-      double v = 0.0;
-      for (auto &k : Rectangulare_LOAD)
-        v += PluralRectangularLoad(k.Intensity, k.Length, span, sec).value;
-      vals.push_back(v);
-    }
-    double mv = MaxValueInVector(vals);
-    result.rect.span = span;
-    result.rect.section = Indice_of(vals, mv);
-    result.rect.maximum_value = mv;
-    std::map<std::string, std::map<std::string, double>> TT;
-    for (auto &k : Rectangulare_LOAD) {
-      auto lo = PluralRectangularLoad(k.Intensity, k.Length, span,
-                                      result.rect.section);
-      TT[k.name] = {{"alpha", (double)lo.max_position},
-                    {"value", lo.value},
-                    {"Position", POSITION[lo.max_position]}};
-    }
-    result.rect.load = TT;
-  }
-
-  // ── Charge combinée ──────────────────────────────────────────────────────
-  {
-    std::vector<double> vals, positions;
-    std::vector<std::map<std::string, std::map<std::string, double>>> maps;
-    for (size_t sec = 0; sec < SpanNodePositions[span].size(); ++sec) {
-      auto lo = CombinedLoad(span, sec);
-      vals.push_back(lo.value);
-      positions.push_back(lo.position);
-      maps.push_back(lo.Addition);
-    }
-    double mv = MaxValueInVector(vals);
-    result.combined.span = span;
-    result.combined.section = Indice_of(vals, mv);
-    result.combined.maximum_value = mv;
-    result.combined.position = positions[result.combined.section];
-    result.combined.load = maps[result.combined.section];
-  }
-
-  return result;
-}
-
-// =============================================================================
-//  CombinedLoad — Fix bug 3 (position UDL) + cohérence avec les corrections
-//  ci-dessus
-// =============================================================================
-CombineLoadPosition Loading::CombinedLoad(size_t span, size_t section) {
-  std::vector<double> VALUES;
-  VALUES.reserve(POSITION.size());
-  std::vector<std::map<std::string, std::map<std::string, double>>> first;
-
-  for (size_t wi = 0; wi < POSITION.size(); ++wi) {
-
-    const double first_wall = POSITION[wi];
-    std::map<std::string, std::map<std::string, double>> second;
-    double val = 0.0;
-
-    // ── Charges ponctuelles ───────────────────────────────────────────────
-    for (auto &j : Point_LOAD) {
-
-      std::map<std::string, double> third;
-      size_t compteur = 0;
-
-      for (auto &I : j.Intensity) {
-        size_t alpha = MetersToPosition(j.Length[compteur] + first_wall);
-        double contribution = (alpha < POSITION.size())
-                                  ? OnePointLoad(I, span, section, alpha)
-                                  : 0.0;
-        val += contribution;
-        third[std::to_string(static_cast<int>(I)) + " " +
-              std::to_string(compteur + 1)] = contribution;
-        ++compteur;
-      }
-      // Position physique de la 1ère charge de ce groupe
-      third["Position"] = first_wall + j.Length[0];
-      second[j.name] = third;
-    }
-
-    // ── Charges réparties ─────────────────────────────────────────────────
-    for (auto &jk : Rectangulare_LOAD) {
-
-      std::map<std::string, double> third;
-
-      // Positions successives relatives au convoi
-      std::vector<double> LengthSuccessive;
-      double y = jk.Length.front();
-      for (size_t i = 0; i < jk.Length.size() - 1; ++i) {
-        LengthSuccessive.push_back(y);
-        y += jk.Length[i + 1];
-      }
-      LengthSuccessive.push_back(y);
-
-      for (size_t k = 0; k < jk.Intensity.size(); ++k) {
-
-        double x_begin_m = LengthSuccessive[k] + first_wall;
-        double x_end_m = LengthSuccessive[k + 1] + first_wall;
-
-        // Clipping sur la poutre
-        x_begin_m = std::max(x_begin_m, POSITION.front());
-        x_end_m = std::min(x_end_m, POSITION.back());
-
-        double contribution = 0.0;
-        if (x_end_m > x_begin_m) {
-          size_t begin = MetersToPosition(x_begin_m);
-          size_t end = MetersToPosition(x_end_m);
-          if (begin >= POSITION.size())
-            begin = 0;
-          if (end >= POSITION.size())
-            end = POSITION.size() - 1;
-          if (end > begin)
-            contribution =
-                OneRectangularLoad(jk.Intensity[k], span, section, begin, end);
+    // g(p) est linéaire par morceaux : extrema en p = t_j − d_i (essieu i sur
+    // le nœud j), limites à gauche et à droite. L'essieu « porteur » est posé
+    // exactement sur t_j pour ne pas perdre un saut à l'arrondi près.
+    for (size_t j = 0; j < line.t.size(); ++j) {
+        const double tj = line.t[j];
+        for (size_t i = 0; i < n; ++i) {
+            const double p = tj - d[i];
+            for (int side = 0; side < 2; ++side) {
+                double v = 0.0;
+                for (size_t k = 0; k < n; ++k) {
+                    const double q = (k == i) ? tj : p + d[k];
+                    v += l.Intensity[k] * (side == 0 ? line.left(q) : line.right(q));
+                }
+                if (v > e.max) { e.max = v; e.maxOrigin = p; e.hasMax = true; }
+                if (v < e.min) { e.min = v; e.minOrigin = p; e.hasMin = true; }
+            }
         }
+    }
+    return e;
+}
 
-        val += contribution;
-        // Fix bug 3 : on stocke contribution ET la position de début du segment
-        // pour permettre au post-traitement de reconstruire l'emplacement exact
-        std::string key = std::to_string(static_cast<int>(jk.Intensity[k])) +
-                          " " + std::to_string(k + 1);
-        third[key] = contribution;
-      }
-      // Position exacte de départ du convoi UDL pour ce balayage
-      // Position physique du début du 1er segment de ce groupe
-      third["Position"] = first_wall + jk.Length[0];
-      second[jk.name] = third;
+// =============================================================================
+//  Recherche exacte — charge répartie (simple ou plurielle)
+// =============================================================================
+Loading::Extreme Loading::distribExtreme(const Line& line, const load& l) const
+{
+    Extreme e;
+    const size_t n = l.Intensity.size();
+    if (n == 0) return e;
+    const auto c = cumulativeOffsets(l.Length, n + 1, "répartie");
+
+    auto G = [&](double p) {
+        double v = 0.0;
+        for (size_t k = 0; k < n; ++k)
+            v += l.Intensity[k] * (line.integral(p + c[k + 1]) - line.integral(p + c[k]));
+        return v;
+    };
+    auto dG = [&](double p) {   // à l'intérieur d'un intervalle (f continue)
+        double v = 0.0;
+        for (size_t k = 0; k < n; ++k)
+            v += l.Intensity[k] * (line.right(p + c[k + 1]) - line.right(p + c[k]));
+        return v;
+    };
+    auto consider = [&](double p) {
+        const double v = G(p);
+        if (v > e.max) { e.max = v; e.maxOrigin = p; e.hasMax = true; }
+        if (v < e.min) { e.min = v; e.minOrigin = p; e.hasMin = true; }
+    };
+
+    // Points de rupture : une borne de tronçon sur un nœud.
+    std::vector<double> cand;
+    cand.reserve(line.t.size() * (n + 1));
+    for (double tj : line.t)
+        for (double cm : c) cand.push_back(tj - cm);
+    std::sort(cand.begin(), cand.end());
+    cand.erase(std::unique(cand.begin(), cand.end()), cand.end());
+
+    for (size_t i = 0; i < cand.size(); ++i) {
+        consider(cand[i]);
+        if (i + 1 == cand.size()) break;
+        // Sur ]p_a, p_b[, G' est affine : on l'échantillonne strictement à
+        // l'intérieur et on cherche son zéro (extremum intérieur de G).
+        const double pa = cand[i], pb = cand[i + 1], w = pb - pa;
+        if (!(w > 0.0)) continue;
+        const double u1 = pa + 0.25 * w, u2 = pa + 0.75 * w;
+        const double g1 = dG(u1), g2 = dG(u2);
+        if (g1 == g2) continue;
+        const double root = u1 - g1 * (u2 - u1) / (g2 - g1);
+        if (root > pa && root < pb) consider(root);
+    }
+    return e;
+}
+
+// =============================================================================
+//  Calcul complet (constructeur)
+// =============================================================================
+void Loading::computeAll()
+{
+    const size_t S = SpanNodePositions.size();
+    pointExt_.assign(S, {});
+    rectExt_.assign(S, {});
+    for (auto* env : {&PointEnvelope, &RectangularEnvelope, &CombinedEnvelope}) {
+        env->max.assign(S, {});
+        env->min.assign(S, {});
     }
 
-    VALUES.push_back(val);
-    first.push_back(second);
-  }
+    for (size_t s = 0; s < S; ++s) {
+        const size_t nSec = SpanNodePositions[s].size();
+        pointExt_[s].resize(nSec);
+        rectExt_[s].resize(nSec);
+        for (auto* env : {&PointEnvelope, &RectangularEnvelope, &CombinedEnvelope}) {
+            env->max[s].assign(nSec, 0.0);
+            env->min[s].assign(nSec, 0.0);
+        }
+        for (size_t sec = 0; sec < nSec; ++sec) {
+            const Line line = makeLine(s, sec);
+            double pmax = 0, pmin = 0, rmax = 0, rmin = 0;
+            for (const auto& l : Point_LOAD) {
+                pointExt_[s][sec].push_back(pointExtreme(line, l));
+                pmax += pointExt_[s][sec].back().max;
+                pmin += pointExt_[s][sec].back().min;
+            }
+            for (const auto& l : Rectangulare_LOAD) {
+                rectExt_[s][sec].push_back(distribExtreme(line, l));
+                rmax += rectExt_[s][sec].back().max;
+                rmin += rectExt_[s][sec].back().min;
+            }
+            PointEnvelope.max[s][sec] = pmax;        PointEnvelope.min[s][sec] = pmin;
+            RectangularEnvelope.max[s][sec] = rmax;  RectangularEnvelope.min[s][sec] = rmin;
+            CombinedEnvelope.max[s][sec] = pmax + rmax;
+            CombinedEnvelope.min[s][sec] = pmin + rmin;
+        }
+    }
 
-  double ff = MaxValueInVector(VALUES);
-  size_t IJ = Indice_of(VALUES, ff);
+    Point_load       = collect(Kind::Point,    0, S);
+    Rectangular_load = collect(Kind::Rect,     0, S);
+    Combined_load    = collect(Kind::Combined, 0, S);
+}
 
-  return CombineLoadPosition{IJ, POSITION[IJ], ff, first[IJ]};
+std::map<std::string, double> Loading::detail(const Extreme& e, bool positive) const
+{
+    const bool has = positive ? e.hasMax : e.hasMin;
+    const double origin = has ? (positive ? e.maxOrigin : e.minOrigin) : kNaN;
+    return {
+        {"value", positive ? e.max : e.min},
+        {"Position", origin},
+        {"alpha", static_cast<double>(nearestNode(origin))},
+    };
+}
+
+load_delivery Loading::collect(Kind kind, size_t spanBegin, size_t spanEnd, long onlySection) const
+{
+    const SectionEnvelope& env = (kind == Kind::Point) ? PointEnvelope
+                               : (kind == Kind::Rect)  ? RectangularEnvelope
+                                                       : CombinedEnvelope;
+    load_delivery d;
+    bool init = false;
+    for (size_t s = spanBegin; s < spanEnd; ++s) {
+        for (size_t sec = 0; sec < SpanNodePositions[s].size(); ++sec) {
+            if (onlySection >= 0 && sec != static_cast<size_t>(onlySection)) continue;
+            const double emax = env.max[s][sec], emin = env.min[s][sec];
+            if (!init || emax > d.max_value) { d.max_value = emax; d.max_span = s; d.max_section = sec; }
+            if (!init || emin < d.min_value) { d.min_value = emin; d.min_span = s; d.min_section = sec; }
+            init = true;
+        }
+    }
+    if (!init) return d;
+
+    auto details = [&](size_t s, size_t sec, bool positive, double& firstOrigin) {
+        std::map<std::string, std::map<std::string, double>> m;
+        firstOrigin = kNaN;
+        auto add = [&](const std::vector<Extreme>& ext, const std::vector<std::string>& names) {
+            for (size_t k = 0; k < ext.size(); ++k) {
+                m[names[k]] = detail(ext[k], positive);
+                if (std::isnan(firstOrigin)) firstOrigin = m[names[k]]["Position"];
+            }
+        };
+        if (kind != Kind::Rect)  add(pointExt_[s][sec], pointNames_);
+        if (kind != Kind::Point) add(rectExt_[s][sec], rectNames_);
+        return m;
+    };
+
+    double maxOrigin = kNaN, minOrigin = kNaN;
+    d.load_max = details(d.max_span, d.max_section, true, maxOrigin);
+    d.load_min = details(d.min_span, d.min_section, false, minOrigin);
+    d.max_section_x = POSITION[globalIndex(d.max_span, d.max_section)];
+    d.min_section_x = POSITION[globalIndex(d.min_span, d.min_section)];
+
+    const bool positiveGoverns = std::abs(d.max_value) >= std::abs(d.min_value);
+    d.maximum_value = positiveGoverns ? d.max_value : d.min_value;
+    d.span          = positiveGoverns ? d.max_span : d.min_span;
+    d.section       = positiveGoverns ? d.max_section : d.min_section;
+    d.section_x     = positiveGoverns ? d.max_section_x : d.min_section_x;
+    d.load          = positiveGoverns ? d.load_max : d.load_min;
+    d.position      = positiveGoverns ? maxOrigin : minOrigin;
+    return d;
+}
+
+// =============================================================================
+//  API élémentaire (1.x)
+// =============================================================================
+double Loading::OnePointLoad(double intensity, size_t span, size_t section, size_t alpha)
+{
+    const size_t g = globalIndex(span, section);
+    if (alpha >= POSITION.size())
+        throw std::out_of_range("Loading::OnePointLoad: alpha=" + std::to_string(alpha)
+            + " hors de la grille (" + std::to_string(POSITION.size()) + " nœuds).");
+    const auto& row = CURVES[span][section];
+    // Lignes d'effort tranchant : au-delà de la section, décalage d'un indice.
+    const size_t r = (row.size() == POSITION.size() + 1 && alpha > g) ? alpha + 1 : alpha;
+    return row[r] * scale_ * intensity;
+}
+
+static Position1D toPosition1D(const Loading::Extreme& e, size_t node_of_max, size_t node_of_min)
+{
+    const bool positive = std::abs(e.max) >= std::abs(e.min);
+    const bool has = positive ? e.hasMax : e.hasMin;
+    Position1D p;
+    p.value = positive ? e.max : e.min;
+    p.position = has ? (positive ? e.maxOrigin : e.minOrigin) : kNaN;
+    p.max_position = positive ? node_of_max : node_of_min;
+    return p;
+}
+
+Position1D Loading::PluralPointLoad(const std::vector<double>& intensity, const std::vector<double>& length,
+                                    size_t span, size_t section)
+{
+    load l{intensity, length, ""};
+    const Extreme e = pointExtreme(makeLine(span, section), l);
+    return toPosition1D(e, nearestNode(e.hasMax ? e.maxOrigin : kNaN), nearestNode(e.hasMin ? e.minOrigin : kNaN));
+}
+
+double Loading::OneRectangularLoad(double intensity, size_t span, size_t section, size_t begin, size_t end)
+{
+    if (begin > end || end >= POSITION.size())
+        throw std::out_of_range("Loading::OneRectangularLoad: il faut begin <= end < "
+            + std::to_string(POSITION.size()) + ".");
+    const Line line = makeLine(span, section);
+    // Intégrale exacte de l'interpolant entre les nœuds begin et end INCLUS
+    // (défaut N6 : l'ancienne boucle `i < end` omettait le dernier intervalle).
+    return intensity * (line.integral(POSITION[end]) - line.integral(POSITION[begin]));
+}
+
+Position1D Loading::PluralRectangularLoad(const std::vector<double>& intensity, const std::vector<double>& length,
+                                          size_t span, size_t section)
+{
+    load l{intensity, length, ""};
+    const Extreme e = distribExtreme(makeLine(span, section), l);
+    return toPosition1D(e, nearestNode(e.hasMax ? e.maxOrigin : kNaN), nearestNode(e.hasMin ? e.minOrigin : kNaN));
+}
+
+CombineLoadPosition Loading::CombinedLoad(size_t span, size_t section)
+{
+    const load_delivery d = collect(Kind::Combined, span, span + 1, static_cast<long>(section));
+    CombineLoadPosition c;
+    c.value = d.maximum_value;
+    c.position = d.position;
+    c.max_position = nearestNode(d.position);
+    c.Addition = d.load;
+    return c;
+}
+
+Loading::CriticalSectionResult Loading::computeCriticalSection(size_t span)
+{
+    if (span >= SpanNodePositions.size())
+        throw std::out_of_range("Loading::computeCriticalSection: travée " + std::to_string(span) + " inexistante.");
+    return {collect(Kind::Point, span, span + 1), collect(Kind::Rect, span, span + 1),
+            collect(Kind::Combined, span, span + 1)};
+}
+
+Loading::CriticalSectionResult Loading::computeAtSection(size_t span, size_t section)
+{
+    globalIndex(span, section); // contrôle des bornes
+    const long sec = static_cast<long>(section);
+    return {collect(Kind::Point, span, span + 1, sec), collect(Kind::Rect, span, span + 1, sec),
+            collect(Kind::Combined, span, span + 1, sec)};
 }

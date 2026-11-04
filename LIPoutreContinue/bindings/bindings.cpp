@@ -197,6 +197,7 @@ Load(intensity=[45.0, 10.0, 25.0], length=[0.0, 3.0, 5.0, 2.0], name="UDL2")
       .def(py::init<>())
       .def_readwrite("max_position", &Position1D::max_position)
       .def_readwrite("value", &Position1D::value)
+      .def_readwrite("position", &Position1D::position)
       .def(
           "to_dict",
           [](const Position1D &p) { return DictConverter::toDict(p); },
@@ -438,10 +439,28 @@ Load(intensity=[45.0, 10.0, 25.0], length=[0.0, 3.0, 5.0, 2.0], name="UDL2")
       .def(py::init<std::vector<std::vector<std::vector<double>>>,
                     std::vector<double>, std::vector<std::vector<double>>,
                     const std::vector<double> &, const std::vector<load> &,
-                    const std::vector<load> &>(),
+                    const std::vector<load> &, double>(),
            py::arg("curves"), py::arg("position"),
            py::arg("span_node_positions"), py::arg("spans"),
-           py::arg("point_loads"), py::arg("distrib_loads"))
+           py::arg("point_loads"), py::arg("distrib_loads"),
+           py::arg("scale") = 1.0)
+      .def_property_readonly(
+          "section_envelopes",
+          [](Loading &self) {
+            auto env = [](const Loading::SectionEnvelope &e) {
+              py::dict d;
+              d["max"] = e.max;
+              d["min"] = e.min;
+              return d;
+            };
+            py::dict out;
+            out["point_load"] = env(self.PointEnvelope);
+            out["rectangular_load"] = env(self.RectangularEnvelope);
+            out["combined_load"] = env(self.CombinedEnvelope);
+            return out;
+          },
+          "Enveloppes par section [travée][section] : {'point_load'|"
+          "'rectangular_load'|'combined_load': {'max': ..., 'min': ...}}.")
       // Renvoyés en dict Python directement manipulable (voir
       // DictConverter::toDict) plutôt qu'en objet LoadDelivery.
       .def_property_readonly("rectangular_load",
@@ -488,7 +507,7 @@ Load(intensity=[45.0, 10.0, 25.0], length=[0.0, 3.0, 5.0, 2.0], name="UDL2")
           },
           py::arg("intensity"), py::arg("length"), py::arg("span"),
           py::arg("section"),
-          "Renvoie un dict Python { 'max_position', 'value' }.")
+          "Renvoie un dict Python { 'max_position', 'value', 'position' }.")
       .def("one_rectangular_load", &Loading::OneRectangularLoad,
            py::arg("intensity"), py::arg("span"), py::arg("section"),
            py::arg("begin"), py::arg("end"))
@@ -501,7 +520,7 @@ Load(intensity=[45.0, 10.0, 25.0], length=[0.0, 3.0, 5.0, 2.0], name="UDL2")
           },
           py::arg("intensity"), py::arg("length"), py::arg("span"),
           py::arg("section"),
-          "Renvoie un dict Python { 'max_position', 'value' }.")
+          "Renvoie un dict Python { 'max_position', 'value', 'position' }.")
       .def(
           "combined_load_at",
           [](Loading &self, size_t span, size_t section) {
@@ -519,7 +538,14 @@ Load(intensity=[45.0, 10.0, 25.0], length=[0.0, 3.0, 5.0, 2.0], name="UDL2")
           "Calcule, pour la travée donnée, la section critique et le "
           "détail de charge (point/réparti/combiné). Reproduit ce que "
           "fait Output.export_load_envelopes() en interne. Renvoie un "
-          "dict Python { 'point': {...}, 'rect': {...}, 'combined': {...} }.");
+          "dict Python { 'point': {...}, 'rect': {...}, 'combined': {...} }.")
+      .def(
+          "compute_at_section",
+          [](Loading &self, size_t span, size_t section) {
+            return DictConverter::toDict(self.computeAtSection(span, section));
+          },
+          py::arg("span"), py::arg("section"),
+          "Enveloppes (point/réparti/combiné) à une section donnée.");
 
   // ── ProjectPaths ─────────────────────────────────────────────────────────
   py::class_<ProjectPaths>(

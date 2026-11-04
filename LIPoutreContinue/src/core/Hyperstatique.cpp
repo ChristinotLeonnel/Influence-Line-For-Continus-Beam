@@ -8,6 +8,7 @@
 #include <vector>
 #include <future>
 #include <iostream>
+#include <stdexcept>
 #include <thread>
 
 // =============================================================================
@@ -39,6 +40,13 @@ Hyperstatique::Hyperstatique(std::vector<double>& E,
     double& steps)
     : L_spans(L), steps(steps), E_spans(E), I_spans(I)
 {
+    if (L.empty())
+        throw std::invalid_argument("Hyperstatique: au moins une travée est requise (L vide).");
+    if (E.size() != L.size() || I.size() != L.size())
+        throw std::invalid_argument("Hyperstatique: E, I et L doivent avoir la même taille (une valeur par travée).");
+    if (std::none_of(L.begin(), L.end(), [](double l) { return l > 0.0; }))
+        throw std::invalid_argument("Hyperstatique: au moins une travée doit avoir une longueur strictement positive.");
+
     number_of_spans = L.size();
 
     for (size_t i = 0; i < number_of_spans; ++i)

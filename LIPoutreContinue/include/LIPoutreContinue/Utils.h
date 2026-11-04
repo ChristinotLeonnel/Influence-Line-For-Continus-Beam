@@ -54,24 +54,50 @@ struct Position3D {
     double val;
 };
 
+// Résultat de la recherche de position la plus défavorable d'UNE charge
+// mobile sur UNE ligne d'influence.
+//   value        : effet extrême signé (celui de plus grand module)
+//   position     : abscisse globale exacte de l'ORIGINE de la charge pour cet
+//                  extrême (essieu/tronçon k à position + d_k) ; NaN si
+//                  l'extrême est obtenu charge absente (value = 0)
+//   max_position : indice du nœud de la grille le plus proche de `position`
+//                  (compatibilité 1.x)
 struct Position1D {
-    size_t max_position;
-    double value;
+    size_t max_position = 0;
+    double value = 0.0;
+    double position = 0.0;
 };
 
 struct CombineLoadPosition {
-    size_t max_position;
-    double position;
-    double value;
+    size_t max_position = 0;
+    double position = 0.0;
+    double value = 0.0;
     std::map<std::string, std::map<std::string, double>> Addition;
 };
 
+// Enveloppe d'un type de charge (ponctuelle / répartie / combinée).
+//   maximum_value, span, section, position, load : extrême GOUVERNANT (plus
+//     grand module entre le max positif et le min négatif) — champs 1.x.
+//   max_* / min_* : extrême positif et extrême négatif, séparément (2.0).
+//   load[nom] = { "value": contribution, "Position": origine, "alpha": nœud }.
+//   section_x : abscisse globale de la section gouvernante.
 struct load_delivery {
     std::map<std::string, std::map<std::string, double>> load;
-    size_t span;
-    size_t section;
-    double maximum_value;
+    size_t span = 0;
+    size_t section = 0;
+    double maximum_value = 0.0;
     double position = 0.0;
+    double section_x = 0.0;
+
+    double max_value = 0.0;
+    size_t max_span = 0, max_section = 0;
+    double max_section_x = 0.0;
+    std::map<std::string, std::map<std::string, double>> load_max;
+
+    double min_value = 0.0;
+    size_t min_span = 0, min_section = 0;
+    double min_section_x = 0.0;
+    std::map<std::string, std::map<std::string, double>> load_min;
 };
 
 
@@ -214,11 +240,27 @@ inline void maximum_delivery(auto& data, json& file,
  */
 inline void loading_delivery(auto& data, json& file,
                               std::filesystem::path Path, std::string name) {
-    file["maximum"]  = data.maximum_value;
-    file["span"]     = data.span;
-    file["section"]  = data.section;
-    file["position"] = data.position;
-    file["load"]     = data.load;
+    // NaN (charge absente) n'est pas représentable en JSON : écrit `null`.
+    auto num = [](double v) { return std::isfinite(v) ? json(v) : json(nullptr); };
+    auto loads = [&](const auto& m) {
+        json out = json::object();
+        for (const auto& [loadName, fields] : m) {
+            json f = json::object();
+            for (const auto& [k, v] : fields) f[k] = num(v);
+            out[loadName] = f;
+        }
+        return out;
+    };
+    file["maximum"]   = data.maximum_value;
+    file["span"]      = data.span;
+    file["section"]   = data.section;
+    file["section_x"] = data.section_x;
+    file["position"]  = num(data.position);
+    file["load"]      = loads(data.load);
+    file["max"] = { {"value", data.max_value}, {"span", data.max_span}, {"section", data.max_section},
+                    {"section_x", data.max_section_x}, {"load", loads(data.load_max)} };
+    file["min"] = { {"value", data.min_value}, {"span", data.min_span}, {"section", data.min_section},
+                    {"section_x", data.min_section_x}, {"load", loads(data.load_min)} };
     delivery(file, Path, name);
 }
 

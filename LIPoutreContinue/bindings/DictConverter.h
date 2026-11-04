@@ -55,6 +55,7 @@ public:
     py::dict out;
     out["max_position"] = p.max_position;
     out["value"] = p.value;
+    out["position"] = p.position; // origine exacte de la charge (NaN si absente)
     return out;
   }
 
@@ -95,6 +96,14 @@ public:
     out["section"] = d.section;
     out["maximum_value"] = d.maximum_value;
     out["position"] = d.position;
+    out["section_x"] = d.section_x;
+    py::dict mx, mn;
+    mx["value"] = d.max_value; mx["span"] = d.max_span; mx["section"] = d.max_section;
+    mx["section_x"] = d.max_section_x; mx["load"] = d.load_max;
+    mn["value"] = d.min_value; mn["span"] = d.min_span; mn["section"] = d.min_section;
+    mn["section_x"] = d.min_section_x; mn["load"] = d.load_min;
+    out["max"] = mx; // extrême positif
+    out["min"] = mn; // extrême négatif
     return out;
   }
 

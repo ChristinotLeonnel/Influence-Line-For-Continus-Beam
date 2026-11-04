@@ -5,6 +5,8 @@
 #include <future>
 #include <iostream>
 #include <stdexcept>
+#include <tuple>
+#include <utility>
 
 // =============================================================================
 //  Output::Output — n'initialise que la géométrie et les chemins.
@@ -159,38 +161,32 @@ void Output::computeLoadEnvelopes(bool force)
     compute(); // no-op si déjà calculé — BM/SF/Def/Rot doivent exister
 
     // ── Enveloppes globales : Loading calcule, on récolte le résultat ──────
-    auto envelopeFor = [&](const auto& data) -> LoadEnvelope {
-        Loading loading(data, X, SpanNodePositions, L_spans, userPointLoads_, userDistribLoads_);
-        return LoadEnvelope{ loading.Point_load, loading.Rectangular_load, loading.Combined_load };
+    // Unités (défaut N1) : les lignes d'influence sont calculées pour une
+    // charge unité de 1 N avec E en Pa → flèche en m/N, rotation en rad/N.
+    // Les charges utilisateur sont en kN : facteur 1e3 pour ces deux
+    // grandeurs. M (m) et V (sans dimension) ne dépendent pas de E : facteur 1.
+    constexpr double kN_to_N = 1e3;
+
+    // Une seule instance de Loading par grandeur : enveloppe générale ET
+    // enveloppe à la section critique (= section du maximum de la ligne
+    // d'influence, comme documenté — auparavant, toute la travée).
+    auto envelopesFor = [&](const auto& data, double scale, const Position3D& pos) {
+        Loading loading(data, X, SpanNodePositions, L_spans, userPointLoads_, userDistribLoads_, scale);
+        auto crit = loading.computeAtSection(pos.i, pos.j);
+        return std::pair<LoadEnvelope, LoadEnvelope>{
+            LoadEnvelope{ loading.Point_load, loading.Rectangular_load, loading.Combined_load },
+            LoadEnvelope{ crit.point, crit.rect, crit.combined } };
     };
 
-    auto fBM  = std::async(std::launch::async, [&] { return envelopeFor(BM);  });
-    auto fSF  = std::async(std::launch::async, [&] { return envelopeFor(SF);  });
-    auto fDef = std::async(std::launch::async, [&] { return envelopeFor(Def); });
-    auto fRot = std::async(std::launch::async, [&] { return envelopeFor(Rot); });
+    auto fBM  = std::async(std::launch::async, [&] { return envelopesFor(BM,  1.0,     BendingMomentMaxPositions); });
+    auto fSF  = std::async(std::launch::async, [&] { return envelopesFor(SF,  1.0,     ShearForceMaxPositions);    });
+    auto fDef = std::async(std::launch::async, [&] { return envelopesFor(Def, kN_to_N, DeflectionMaxPositions);    });
+    auto fRot = std::async(std::launch::async, [&] { return envelopesFor(Rot, kN_to_N, RotationMaxPositions);      });
 
-    BendingMomentGeneralLoadEnvelope = fBM.get();
-    ShearForceGeneralLoadEnvelope    = fSF.get();
-    DeflectionGeneralLoadEnvelope    = fDef.get();
-    RotationGeneralLoadEnvelope      = fRot.get();
-
-    // ── Enveloppes à la section critique : Loading::computeCriticalSection()
-    //    fait tout le calcul, on récolte le résultat. ─────────────────────
-    auto criticalFor = [&](const auto& data, const Position3D& pos) -> LoadEnvelope {
-        Loading loading(data, X, SpanNodePositions, L_spans, userPointLoads_, userDistribLoads_);
-        auto result = loading.computeCriticalSection(pos.i);
-        return LoadEnvelope{ result.point, result.rect, result.combined };
-    };
-
-    auto fCritBM  = std::async(std::launch::async, [&] { return criticalFor(BM,  BendingMomentMaxPositions); });
-    auto fCritSF  = std::async(std::launch::async, [&] { return criticalFor(SF,  ShearForceMaxPositions);    });
-    auto fCritDef = std::async(std::launch::async, [&] { return criticalFor(Def, DeflectionMaxPositions);    });
-    auto fCritRot = std::async(std::launch::async, [&] { return criticalFor(Rot, RotationMaxPositions);      });
-
-    BendingMomentCriticalLoadEnvelope = fCritBM.get();
-    ShearForceCriticalLoadEnvelope    = fCritSF.get();
-    DeflectionCriticalLoadEnvelope    = fCritDef.get();
-    RotationCriticalLoadEnvelope      = fCritRot.get();
+    std::tie(BendingMomentGeneralLoadEnvelope, BendingMomentCriticalLoadEnvelope) = fBM.get();
+    std::tie(ShearForceGeneralLoadEnvelope,    ShearForceCriticalLoadEnvelope)    = fSF.get();
+    std::tie(DeflectionGeneralLoadEnvelope,    DeflectionCriticalLoadEnvelope)    = fDef.get();
+    std::tie(RotationGeneralLoadEnvelope,      RotationCriticalLoadEnvelope)      = fRot.get();
 
     loadEnvelopesComputed_ = true;
 }
