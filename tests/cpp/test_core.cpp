@@ -78,6 +78,23 @@ int main() {
         check(asym <= 1e-12 * scale, "Maxwell-Betti symmetry (abs asym / scale)", asym / scale, 0.0);
     }
 
+    // 5) Extrait « Utilisation en C++ » du README — doit compiler et donner
+    //    les mêmes valeurs que l'API Python (M max = 597.8 kN·m, voir ex00).
+    {
+        std::vector<double> E{210e9, 210e9}, I{8e-4, 1.2e-3}, L{10.0, 12.0};
+        double h = 0.25;
+        Output out(E, I, L, h);
+        out.compute();
+        out.setLoads({ load{{60, 120, 120}, {0.0, 1.5, 4.5}, "Camion"} },
+                     { load{{9.0}, {0.0, 10.0}, "Voie"} });
+        out.computeLoadEnvelopes();
+        const double m = out.BendingMomentGeneralLoadEnvelope.combinedLoad.max_value;
+        check(std::abs(m - 597.8) < 0.05, "README C++ snippet: combined M max ~ 597.8 kN.m", m, 597.8);
+        double rsum = 0.0;
+        for (const auto& row : out.SupportReaction) rsum += row[out.X.size() / 3];
+        check(close(rsum, 1.0, 1e-12), "sum of reactions = 1", rsum, 1.0);
+    }
+
     std::printf("%d failure(s)\n", g_failures);
     return g_failures == 0 ? 0 : 1;
 }

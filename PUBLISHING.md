@@ -1,4 +1,4 @@
-# Publier Tsaraloha sur PyPI (Windows uniquement)
+# Publier Tsaraloha sur PyPI
 
 Ce document décrit la marche à suivre **une seule fois**, puis le geste
 répété à chaque nouvelle version. Le pipeline (`.github/workflows/wheels.yml`)
@@ -33,7 +33,9 @@ tag mal placé.
 ## 3) Publier une version
 
 ```bash
-# 1. Mettez à jour le numéro de version dans pyproject.toml (project.version)
+# 1. Mettez à jour la version : pyproject.toml (project.version),
+#    python/Tsaraloha/__init__.py et python/Tsaraloha/LIPoutreContinue/__init__.py,
+#    puis l'entrée correspondante de CHANGELOG.md
 # 2. Committez, puis taguez :
 git commit -am "Version 1.0.2"
 git tag v1.0.2
@@ -72,3 +74,13 @@ code soit open-source : publier là-bas rend seulement le **binaire**
 (wheels) et le **sdist** téléchargeables publiquement par n'importe qui —
 la licence, elle, continue d'interdire légalement la redistribution/
 modification par vos utilisateurs si c'est ce que vous voulez.
+
+
+## Plateformes publiées (2.0)
+
+Le workflow `wheels.yml` construit des wheels **C++** pour Windows x64, Linux x86_64 et aarch64 (manylinux),
+ainsi que macOS x86_64 et arm64, de CPython 3.9 à 3.14. Il publie aussi le sdist. La suite pytest complète est
+exécutée sur chaque wheel. Il n'y a plus de wheel `py3-none-any` : le backend pur-Python a été supprimé.
+
+**À vérifier au premier passage CI** : la version de l'action `pypa/cibuildwheel@v3.1.4` et la prise en
+charge de `cp314` par cette version. Ces deux points n'ont pas pu être testés localement.

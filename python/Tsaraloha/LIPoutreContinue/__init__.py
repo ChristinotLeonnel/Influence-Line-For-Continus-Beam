@@ -166,7 +166,8 @@ class Load(_RawLoad):
           `len(intensity)` = nombre de tronçons.
     length : list[float]
         • Charge ponctuelle : distances entre essieux consécutifs [m].
-          `len(length) == len(intensity)` (la dernière valeur n'est pas utilisée).
+          `len(length) == len(intensity)`. `length = [d0, s1, …, s(n-1)]` : essieu i à
+          origine + d0 + s1 + … + si (toutes les valeurs sont utilisées).
         • Charge répartie : `[PositionDepart, L_q1, L_q2, ..., L_qn]` [m].
           `len(length) == len(intensity) + 1`.
           `PositionDepart = 0` si la charge commence au début de la travée.
@@ -589,7 +590,7 @@ class Output(_RawOutput):
         curve_plotter=None,
     ):
         """
-        Génère directement la note de calcul au format PDF (mise en page A4 RDM6).
+        Génère directement la note de calcul au format PDF (nécessite weasyprint).
         """
         from .report import generate_calculation_pdf as _gen_pdf
         return _gen_pdf(

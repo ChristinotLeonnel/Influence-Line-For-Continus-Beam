@@ -117,7 +117,7 @@ intensity : list[float]
 
 length : list[float]
     • Charge ponctuelle  → distances entre essieux consécutifs [m]
-      len(length) == len(intensity)  (la dernière valeur n'est pas utilisée)
+      len(length) == len(intensity)  (essieu i à d0 + s1 + … + si)
     • Charge répartie   → [PositionDepart, L_q1, L_q2, ..., L_qn] [m]
       len(length) == len(intensity) + 1
       PositionDepart = 0 si la charge commence au début de la travée
@@ -137,7 +137,7 @@ CHARGES PONCTUELLES — FORMAT
   xP = distance entre le début de travée et le 1er essieu
   xQ = distance entre le 1er et le 2ème essieu
   xR = distance entre le 2ème et le 3ème essieu
-  (la dernière valeur de length n'est pas utilisée par le moteur)
+  (toutes les valeurs de length sont utilisées : essieu i à d0 + s1 + … + si)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CHARGES RÉPARTIES — FORMAT
@@ -692,7 +692,7 @@ point_loads : list[Load]
       • intensity : list[float]  — force de chaque essieu [kN]
       • length    : list[float]  — distance entre essieux consécutifs [m]
                                    (len(length) == len(intensity),
-                                    la dernière valeur est ignorée)
+                                    essieu i à d0 + s1 + … + si)
       • name      : str          — étiquette libre (ex. "Camion A")
 
     Règles de format :
@@ -733,7 +733,7 @@ camion = lipc.Load(intensity=[50.0], length=[0.0], name="Essieu")
 # ── Convoi 6 essieux : 6 + 12 + 12 + 6 + 12 + 12 kN, espacés de 2.25 + 4.5 + 1.5 + 5 + 4.5 + 1.5 m ─────
 convoi = lipc.Load(
     intensity=[6.0, 12.0, 12.0, 6.0, 12.0, 12.0],
-    length   =[2.25, 4.5,  1.5, 5.0,  4.5, 1.5],   # dernière valeur ignorée
+    length   =[2.25, 4.5,  1.5, 5.0,  4.5, 1.5],   # [d0, s1, …] : toutes les valeurs utilisées
     name="Convoi BC",
 )
 

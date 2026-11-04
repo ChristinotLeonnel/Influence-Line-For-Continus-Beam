@@ -71,11 +71,28 @@ contrevient directement à la règle « un seul moteur ».
 
 ## Avancement
 
-| Phase | État | Vérification |
+| Phase | Commit | Vérification |
 |---|---|---|
-| P0 — Socle de tests | Fait (branche `modernisation/p0-p1-tests-build`, non commité) | `tests/` : 62 tests passent, 11 `xfail(strict)` = défauts N1–N9, chacun échouant sur son assertion chiffrée ; `ctest` : 1/1 |
-| P1 — Build | Fait (idem) | `.pyd` placé à côté du paquet sous Visual Studio (vérifié sur build propre) ; avertissement explicite en cas de repli Python ; options d'avertissement `PRIVATE` ; en-têtes `<cstring>`/`<cstdio>` manquants pour GCC |
-| CI | Ajoutée (`.github/workflows/tests.yml`) | **Non exécutée** : aucun Linux disponible localement, le build GCC sera validé au premier passage CI |
+| Audit + P0 (tests) + P1 (build) | `da9b0c8` | 62 tests + 11 `xfail(strict)` (N1–N9), chacun échouant sur sa valeur prédite ; `.pyd` correctement placé |
+| P2 — Corrections numériques N1–N9 | `14c1b47` | Les 11 xfail passent et deviennent des tests de régression ; oracle de Clapeyron inchangé |
+| P5 — Moteur unique (suppression du backend Python) | `a52515c` | `pip install .` dans un venv isolé : extension C++ seule ; ImportError explicite sinon |
+| P3 — Mémoire et performance | `5ec0c9c` | A/B dans la même session : enveloppes ×18 à ×29, pic mémoire −38 à −43 % ([benchmarks](benchmarks.md)) |
+| P4 — Résultats (réactions, courbes, extrema physiques) | `0ec7cef` | ΣR = 1, ΣR·x = x, formes fermées ; N6b (O(h²)) mesuré et documenté |
+| P6 — API de haut niveau | `4c005f8` | Mêmes valeurs que l'API bas niveau (test d'égalité exacte) |
+| P7 — Note de calcul | `87eed1c` | Contrôles exécutés à la génération ; mentions RDM6 supprimées |
+| P8 — Nettoyage et dépréciations | `89cf539` | Exemples exécutés avec `-W error::DeprecationWarning` |
+| P9 — Documentation | (ce commit) | Extraits du README exécutés (Python) et compilés dans `test_core` (C++) |
+
+**Validation finale** (build propre, Windows / MSVC / Python 3.15) : 0 avertissement de compilation ; `ctest`
+1/1 (6 contrôles) ; **116 tests pytest** sur le build CMake **et** sur la wheel installée dans un venv neuf ;
+11/11 exemples (3 C++, 8 Python).
+
+**Non vérifié localement :**
+- build GCC / Linux et macOS ;
+- `cibuildwheel@v3.1.4` et `cp314` ;
+- PDF (weasyprint non installé).
+
+Le premier passage de la CI (`tests.yml`, `wheels.yml`) tranchera ces points.
 
 Lancer les tests :
 

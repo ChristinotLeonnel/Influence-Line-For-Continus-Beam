@@ -4,6 +4,14 @@ Bienvenue dans le manuel de référence exhaustif de la sous-librairie **`Tsaral
 
 Cette librairie haute performance (moteur C++20 avec interface Python pybind11) est dédiée à l'**analyse structurelle de poutres continues (isostatiques et hyperstatiques)**, au calcul des **lignes d'influence**, au passage de **charges mobiles complexes** (essieux ponctuels, convois routiers/ferroviaires, surcharges réparties variables) et à la détermination des **enveloppes de sollicitations maximales**.
 
+> **Version 2.0.** Ce document est la référence de l'**API bas niveau** (`Output`, `Load`, `Hyperstatique`,
+> `Loading`, …), conservée pour la compatibilité. Pour un nouveau code, préférez l'API de haut niveau
+> `Beam` / `PointLoadTrain` / `DistributedLoad` / `Results`, décrite dans le [README](README.md).
+> Les changements de résultats par rapport à 1.x sont listés dans le [CHANGELOG](CHANGELOG.md).
+> Nouveautés de l'API bas niveau en 2.0 : `support_reaction`, `support_reaction_envelopes`,
+> `section_envelopes`, `influence_line_extrema`, les blocs `max` / `min` de chaque enveloppe,
+> ainsi que `Loading.section_envelopes` et `Loading.compute_at_section()`.
+
 ---
 
 ## Sommaire
@@ -35,23 +43,23 @@ La librairie est structurée en deux couches complémentaires :
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                   API Publique Python (Tsaraloha)                        │
-│   • Tsaraloha.LIPoutreContinue : Output, Isostatique, Hyperstatique,     │
-│                                  Load, UpdatePositions, ProjectPaths     │
+│   • Tsaraloha.LIPoutreContinue : Beam, PointLoadTrain, DistributedLoad,  │
+│     Results (2.0) ; Output, Isostatique, Hyperstatique, Load, Loading    │
 │   • Validation proactive des types & dimensions à la NumPy               │
 └────────────────────────────────────┬─────────────────────────────────────┘
                                      │  (pybind11 bindings)
 ┌────────────────────────────────────▼─────────────────────────────────────┐
 │                   Noyau Haute Performance C++20                          │
 │   • Header unique : <LIPoutreContinue/StructuralAnalysis.h>              │
-│   • Résolution matricielle optimisée (Clapeyron, Kahan, OpenMP ready)    │
+│   • Méthode des foyers (Clapeyron) ; recherche exacte des charges        │
 │   • Exécution 100% en RAM : aucun accès disque automatique               │
-│   • Sérialisation JSON nlohmann & exports texte structurés               │
+│   • Export JSON optionnel (nlohmann, embarqué)                           │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
 - **Calcul en RAM par défaut** : Instancier un objet ou appeler `compute()` ne crée aucun fichier sur disque. Les données sont conservées en mémoire pour un traitement instantané.
 - **Exports explicites** : Les méthodes `export_all()`, `export_load_envelopes()`, etc., sont déclenchées uniquement sur demande.
-- **Zéro fuite mémoire** : Encapsulation stricte des durées de vie entre Python et C++.
+- **Durées de vie** : les objets Python possèdent une copie de E, I et L (le cœur C++ ne conserve que des références).
 
 ---
 
@@ -89,6 +97,13 @@ $env:PYTHONPATH="build/python"   # (Windows PowerShell)
 | Effort tranchant | $V$ ou $\text{SF}$ | Kilonewtons ($\text{kN}$) |
 | Déformée / Flèche | $w$ ou $\text{Def}$ | Mètres ($\text{m}$) |
 | Rotation de section | $\theta$ ou $\text{Rot}$ | Radians ($\text{rad}$) |
+| Réaction d'appui | $R$ | Kilonewtons ($\text{kN}$) |
+
+**Lignes d'influence** (tenseurs `BM`, `SF`, `Def`, `Rot`, `support_reaction`) : effet d'une charge unité.
+`BM` est en m (soit kN·m par kN), `SF` et `support_reaction` sont sans dimension (kN/kN). `Def` et `Rot` sont
+en **m/N et rad/N**, car E est en Pa. Les **enveloppes** sont toujours dans les unités du tableau ci-dessus,
+la conversion kN → N étant faite par le moteur. Avant 2.0, les enveloppes de flèche et de rotation étaient
+1000 fois trop petites.
 
 ---
 
@@ -194,7 +209,7 @@ Load(intensity, length, name="")
    │ 3 essieux (P,Q,R): intensity=[P, Q, R],  length=[xP, xQ, xR]        │
    └──────────────────────────────────────────────────────────────────────┘
    • xP : distance de référence (offset initial)
-   • xQ, xR : distances entre essieux consécutifs (la dernière valeur de length n'est pas utilisée)
+   • xQ, xR : distances entre essieux consécutifs (toutes les valeurs sont utilisées : essieu i à d0 + s1 + … + si)
 
 2. CHARGE RÉPARTIE : len(length) == len(intensity) + 1
    ┌──────────────────────────────────────────────────────────────────────┐
