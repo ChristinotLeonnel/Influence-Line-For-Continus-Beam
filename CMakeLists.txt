@@ -66,6 +66,7 @@ endif()
 # ── Options ───────────────────────────────────────────────────────────────
 option(TSARALOHA_BUILD_PYTHON   "Construire le(s) module(s) Python pybind11 des sous-librairies" ON)
 option(TSARALOHA_BUILD_EXAMPLES "Construire les exécutables d'examples/ (si présents)" OFF)
+option(TSARALOHA_BUILD_TESTS    "Construire les tests natifs C++ (tests/cpp, exécutés par ctest)" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -111,22 +112,37 @@ target_include_directories(LIPoutreContinue_core PUBLIC
 # (no-op sous Windows, Threads::Threads reste portable).
 target_link_libraries(LIPoutreContinue_core PUBLIC Threads::Threads)
 
+# PUBLIC : options nécessaires à tout code qui inclut les en-têtes du cœur.
+# PRIVATE : niveau d'avertissement et parallélisme de build, propres à ce
+# projet — ils ne doivent pas être imposés aux programmes consommateurs.
+# L'optimisation est laissée à CMAKE_BUILD_TYPE (Release = -O3 / /O2).
 if(MSVC)
     target_compile_options(LIPoutreContinue_core PUBLIC
         /EHsc          # exceptions C++ standard (requis par pybind11)
-        /W4            # warnings niveau 4 (équivalent -Wall -Wextra)
         /permissive-   # conformité stricte au standard C++ (comme GCC/Clang)
         /Zc:__cplusplus # __cplusplus reporte la vraie version C++ (sinon MSVC ment)
+    )
+    target_compile_options(LIPoutreContinue_core PRIVATE
+        /W4            # warnings niveau 4 (équivalent -Wall -Wextra)
         /MP            # compilation multi-fichiers en parallèle -> build plus rapide
     )
 else()
-    target_compile_options(LIPoutreContinue_core PUBLIC -O3 -Wall -Wextra)
+    target_compile_options(LIPoutreContinue_core PRIVATE -Wall -Wextra)
 endif()
 
 # ── 2) Exemples — optionnels, désactivés par défaut (TSARALOHA_BUILD_EXAMPLES=ON
 #      pour les activer). Ignorés silencieusement si examples/ n'existe pas.
 if(TSARALOHA_BUILD_EXAMPLES AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/LIPoutreContinue/examples/CMakeLists.txt")
     add_subdirectory(LIPoutreContinue/examples)
+endif()
+
+# ── 2bis) Tests natifs C++ — optionnels (TSARALOHA_BUILD_TESTS=ON), lancés
+#      par `ctest -C Release`. Aucun framework externe.
+if(TSARALOHA_BUILD_TESTS)
+    enable_testing()
+    add_executable(test_core tests/cpp/test_core.cpp)
+    target_link_libraries(test_core PRIVATE LIPoutreContinue_core)
+    add_test(NAME core_closed_forms COMMAND test_core)
 endif()
 
 # ── 3) Module Python — "Tsaraloha.LIPoutreContinue._LIPoutreContinue"
@@ -176,9 +192,14 @@ if(TSARALOHA_BUILD_PYTHON)
     # *.pyi) à côté, pour que
     # `PYTHONPATH=build/python python3 -c "import Tsaraloha.LIPoutreContinue"`
     # fonctionne directement après le build, sans étape d'installation.
+    # Le `$<1:...>` (expression génératrice triviale) empêche les générateurs
+    # multi-configuration (Visual Studio, Xcode) d'ajouter un sous-dossier
+    # `Release/`/`Debug/` : sans lui, le .pyd atterrissait dans
+    # .../LIPoutreContinue/Release/ tandis que les .py étaient copiés un niveau
+    # au-dessus, et `import` retombait silencieusement sur un autre backend.
     set_target_properties(_LIPoutreContinue PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python/Tsaraloha/LIPoutreContinue"
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python/Tsaraloha/LIPoutreContinue"
+        LIBRARY_OUTPUT_DIRECTORY "$<1:${CMAKE_BINARY_DIR}/python/Tsaraloha/LIPoutreContinue>"
+        RUNTIME_OUTPUT_DIRECTORY "$<1:${CMAKE_BINARY_DIR}/python/Tsaraloha/LIPoutreContinue>"
     )
 
     # ── Copie du paquet pur-Python racine Tsaraloha/ (namespace) ────────────

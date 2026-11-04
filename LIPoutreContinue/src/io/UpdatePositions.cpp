@@ -1,5 +1,6 @@
 #include "LIPoutreContinue/io/UpdatePositions.h"
 
+#include <cstdio>   // std::snprintf
 #include <fstream>
 #include <sstream>
 #include <iostream>

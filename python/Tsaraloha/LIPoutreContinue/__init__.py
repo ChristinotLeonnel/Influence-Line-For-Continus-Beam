@@ -106,14 +106,27 @@ vérifications effectuées avant d'appeler l'extension compilée.
 from __future__ import annotations
 
 import difflib
+import warnings
 
-# Try importing compiled C++ extension, fallback to pure-Python
+# Extension C++ compilée = moteur de référence. Le repli pur-Python est
+# conservé temporairement (suppression prévue, voir docs/audit/06_plan.md P5),
+# mais il n'est plus silencieux : il est ~40x plus lent sur les enveloppes et
+# ne gère pas les encastrements (travées de longueur nulle).
 try:
     from . import _LIPoutreContinue as _core
     _BACKEND = "cpp"
-except ImportError:
+except ImportError as _cpp_import_error:
     from . import _core_python as _core
     _BACKEND = "python"
+    warnings.warn(
+        "Tsaraloha.LIPoutreContinue : extension C++ introuvable "
+        f"({_cpp_import_error}). Repli sur le backend pur-Python, beaucoup plus "
+        "lent et sans support des encastrements. Réinstallez la librairie "
+        "(pip install --force-reinstall Tsaraloha) ou vérifiez que le module "
+        "_LIPoutreContinue compilé est à côté de ce fichier.",
+        RuntimeWarning,
+        stacklevel=2,
+    )
 
 
 from . import _validation as _v

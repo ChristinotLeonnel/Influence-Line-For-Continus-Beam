@@ -26,6 +26,7 @@
 #include <sstream>
 #include <limits>
 #include <cmath>
+#include <cstring>   // std::strlen (LoadParser) — non garanti transitivement par libstdc++
 #include <stdexcept>
 
 using json = nlohmann::json;

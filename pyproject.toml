@@ -69,6 +69,11 @@ sdist.exclude = [
     "google_veo_script.md",
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+xfail_strict = true
+
 [tool.scikit-build.cmake.define]
 TSARALOHA_BUILD_PYTHON = "ON"
 TSARALOHA_BUILD_EXAMPLES = "OFF"
