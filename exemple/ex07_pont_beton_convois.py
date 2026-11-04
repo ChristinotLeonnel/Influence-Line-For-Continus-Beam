@@ -13,6 +13,10 @@ physique.
 """
 import Tsaraloha.LIPoutreContinue as tsa
 
+if not hasattr(tsa, "Beam"):   # version 1.x installée (PyPI) au lieu de la 2.0 du dépôt
+    raise SystemExit(f"Tsaraloha {tsa.__version__} est installée ; cet exemple requiert la 2.0. "
+                     'Depuis la racine du dépôt :  python -m pip install ".[plot]"')
+
 E = 30e9                       # béton, 30 GPa
 I = 0.3 * 0.6**3 / 12          # section 30 x 60 cm : b h³ / 12  [m⁴]
 
@@ -34,7 +38,7 @@ for name, ex in [("M max", res.maximum_bending_moment), ("M min", res.minimum_be
                  ("V", res.maximum_shear_force), ("w", res.maximum_deflection)]:
     print(f"{name:6s} = {ex.value: .4g} {ex.unit}  en x = {ex.x:.2f} m")
     for load, d in ex.loads.items():
-        print(f"         {load:20s} {d['value']: .4g}  (origine {d['position']})")
+        print(f"         {load:20s} {d['value']: .4g}  (origine {d['position']:.2f} m)")
 
 for r in res.reactions():
     print(f"Appui {r['support']} (x = {r['x']:.1f} m) : R ∈ [{r['min']:.2f} ; {r['max']:.2f}] kN")

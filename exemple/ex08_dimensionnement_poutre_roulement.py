@@ -45,6 +45,10 @@ import numpy as np
 
 import Tsaraloha.LIPoutreContinue as tsa
 
+if not hasattr(tsa, "Beam"):   # version 1.x installée (PyPI) au lieu de la 2.0 du dépôt
+    raise SystemExit(f"Tsaraloha {tsa.__version__} est installée ; cet exemple requiert la 2.0. "
+                     'Depuis la racine du dépôt :  python -m pip install ".[plot]"')
+
 _trapz = getattr(np, "trapezoid", None) or np.trapz   # NumPy 2.x / 1.x
 
 # ── Données du problème ─────────────────────────────────────────────────────

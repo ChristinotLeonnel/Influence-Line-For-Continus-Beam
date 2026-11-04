@@ -6,6 +6,10 @@ de voie : enveloppes, valeurs maximales et note de calcul.
 """
 import Tsaraloha.LIPoutreContinue as tsa
 
+if not hasattr(tsa, "Beam"):   # version 1.x installée (PyPI) au lieu de la 2.0 du dépôt
+    raise SystemExit(f"Tsaraloha {tsa.__version__} est installée ; cet exemple requiert la 2.0. "
+                     'Depuis la racine du dépôt :  python -m pip install ".[plot]"')
+
 beam = tsa.Beam()
 beam.add_span(length=10.0, E=210e9, I=8e-4)          # E [Pa], I [m⁴]
 beam.add_span(length=12.0, E=210e9, I=1.2e-3)

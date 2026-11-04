@@ -22,6 +22,10 @@ pip install "Tsaraloha[plot]"       # + matplotlib (graphiques)
 pip install "Tsaraloha[report]"     # + weasyprint (note de calcul en PDF)
 ```
 
+> **Avant la publication de la 2.0 sur PyPI**, `pip install Tsaraloha` installe la 1.x, qui n'a ni
+> `Beam` ni les exemples de `exemple/`. Installez depuis le dépôt :
+> `python -m pip install ".[plot]"` (à relancer après chaque modification du code).
+
 Sur une plateforme sans wheel, pip compile depuis les sources : il faut alors un compilateur C++20 et
 CMake ≥ 3.18.
 
