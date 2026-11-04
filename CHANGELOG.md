@@ -38,6 +38,11 @@ sont vérifiées exactes à 10⁻¹⁵ par rapport à une résolution directe de
 ### Performance
 - Enveloppes : 54,8 s → 1,96 s pour N = 1004 nœuds (×28), 4,70 s → 0,26 s pour N = 404. Mesuré sur le même poste, voir [docs/audit/04_performance_memoire.md](docs/audit/04_performance_memoire.md).
 
+### Suppression du second moteur
+- **Le backend pur-Python (`_core_python.py`) et `setup_pure.py` sont supprimés.** C'était une copie complète du moteur, ~40× plus lente sur les enveloppes, qui ne gérait pas les encastrements et qui aurait dû recevoir chaque correction en double. Il n'y a plus qu'un seul moteur numérique : l'extension C++.
+- Si l'extension n'est pas chargeable, `import Tsaraloha.LIPoutreContinue` lève une `ImportError` explicite, au lieu de basculer silencieusement sur l'autre moteur. `_BACKEND` vaut toujours `"cpp"`.
+- Wheels C++ pour Windows x64, Linux x86_64/aarch64 et macOS x86_64/arm64, CPython 3.9 à 3.14. La suite de tests complète est exécutée sur chaque wheel. Sur une plateforme sans wheel (par exemple Pydroid/Android), l'installation demande un compilateur C++20.
+
 ### Build / tests
 - Le `.pyd` est désormais placé à côté du paquet avec les générateurs multi-configuration (Visual Studio).
 - Ajout de la suite pytest (`tests/`), d'un test natif C++ (`ctest`) et de la CI Linux + Windows.

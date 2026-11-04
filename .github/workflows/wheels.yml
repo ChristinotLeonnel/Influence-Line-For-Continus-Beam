@@ -1,25 +1,19 @@
 # =============================================================================
-#  wheels.yml — Build & publish Tsaraloha (Windows C++ + Pure Python)
+#  wheels.yml — Build & publish Tsaraloha (un seul moteur : l'extension C++)
 #
-#  1) build_wheels      : compile une wheel précompilée Windows x64 par version
-#                          Python via cibuildwheel.
-#  2) build_pure_wheel  : construit une wheel pure Python (py3-none-any) pour
-#                          les plateformes sans wheel C++ (Android/PyDroid,
-#                          Linux ARM, macOS ARM...).
-#  3) build_sdist       : construit la source distribution (.tar.gz), utilisée
-#                          en secours si l'utilisateur compile depuis les sources.
-#  4) publish_pypi      : ne s'exécute QUE sur un tag "v*" (ex. v1.1.0) et
-#                          publie tout sur PyPI via Trusted Publishing (OIDC,
-#                          aucun secret/token à stocker dans le repo).
+#  1) build_wheels : wheels précompilées via cibuildwheel, une par plateforme
+#                    et par version de CPython :
+#                      Windows x64, Linux x86_64 + aarch64 (manylinux),
+#                      macOS x86_64 + arm64.
+#                    Chaque wheel est testée avec la suite pytest complète.
+#  2) build_sdist  : source distribution (.tar.gz) — repli : pip compile depuis
+#                    les sources (compilateur C++20 + CMake requis).
+#  3) publish_pypi : uniquement sur un tag "v*" (ex. v2.0.0), via Trusted
+#                    Publishing (OIDC, aucun secret dans le dépôt).
+#  4) github_release : release GitHub avec tous les artefacts.
 #
-#  Déclenchement :
-#    - push d'un tag "v*"        -> build + publish sur PyPI
-#    - déclenchement manuel      -> build seul (pour tester sans publier)
-#    - pull_request               -> build seul (validation avant merge)
-#
-#  Stratégie pip :
-#    - Windows x64 : pip choisit la wheel C++ (plus rapide)
-#    - Autres (Android, Linux, macOS) : pip choisit py3-none-any (fallback Python)
+#  La configuration cibuildwheel (versions Python, tests) est dans
+#  [tool.cibuildwheel] de pyproject.toml.
 # =============================================================================
 name: Build & publish wheels
 
@@ -31,69 +25,30 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # 1) Wheel précompilée Windows x64 (une par version Python)
-  # ---------------------------------------------------------------------------
   build_wheels:
-    name: Wheels • windows-latest
-    runs-on: windows-latest
+    name: Wheels • ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # ubuntu-24.04-arm : runner ARM natif (aarch64) ; macos-13 = Intel,
+        # macos-14 = Apple Silicon.
+        os: [windows-latest, ubuntu-latest, ubuntu-24.04-arm, macos-13, macos-14]
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.21
-        # La config complète (versions Python ciblées, test-command...)
-        # vit dans [tool.cibuildwheel] de pyproject.toml.
+        uses: pypa/cibuildwheel@v3.1.4
 
       - uses: actions/upload-artifact@v4
         with:
-          name: wheels-windows
+          name: wheels-${{ matrix.os }}
           path: ./wheelhouse/*.whl
 
-  # ---------------------------------------------------------------------------
-  # 2) Wheel pure Python (py3-none-any) — fallback universel
-  # ---------------------------------------------------------------------------
-  build_pure_wheel:
-    name: Pure Python wheel
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Build pure Python wheel
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python setup_pure.py bdist_wheel --python-tag py3
-          ls dist/
-
-      - name: Smoke test pure wheel
-        run: |
-          pip install dist/*.whl
-          python -c "
-          import Tsaraloha.LIPoutreContinue as lipc
-          assert lipc._BACKEND == 'python', f'Expected python backend, got {lipc._BACKEND}'
-          o = lipc.Output(E=[210e9], I=[8e-4], L=[6.0], steps=1.0)
-          o.compute()
-          assert len(o.X) > 0, 'No nodes computed'
-          print('Pure Python wheel OK:', lipc._BACKEND, 'nodes:', len(o.X))
-          "
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pure-wheel
-          path: dist/*.whl
-
-  # ---------------------------------------------------------------------------
-  # 3) Source distribution (secours : compilation depuis les sources)
-  # ---------------------------------------------------------------------------
   build_sdist:
     name: Source distribution
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -111,40 +66,23 @@ jobs:
           name: sdist
           path: dist/*.tar.gz
 
-  # ---------------------------------------------------------------------------
-  # ---------------------------------------------------------------------------
-  # 4) Publication PyPI — uniquement sur un tag "vX.Y.Z"
-  # ---------------------------------------------------------------------------
   publish_pypi:
     name: Publier sur PyPI
-    needs: [build_wheels, build_pure_wheel, build_sdist]
+    needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
-    continue-on-error: true
     environment:
       name: pypi
       url: https://pypi.org/p/Tsaraloha
     permissions:
-      id-token: write   # requis par le Trusted Publishing (OIDC), pas de token à gérer
+      id-token: write   # Trusted Publishing (OIDC)
 
     steps:
-      - name: Récupérer les wheels C++ Windows
+      - name: Récupérer tous les artefacts
         uses: actions/download-artifact@v4
         with:
-          name: wheels-windows
           path: dist
-
-      - name: Récupérer la wheel pure Python
-        uses: actions/download-artifact@v4
-        with:
-          name: pure-wheel
-          path: dist
-
-      - name: Récupérer le sdist
-        uses: actions/download-artifact@v4
-        with:
-          name: sdist
-          path: dist
+          merge-multiple: true
 
       - name: Lister les fichiers à publier
         run: ls -la dist/
@@ -152,12 +90,9 @@ jobs:
       - name: Publier sur PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
-  # ---------------------------------------------------------------------------
-  # 5) GitHub Release — crée la release et attache tous les .whl et .tar.gz
-  # ---------------------------------------------------------------------------
   github_release:
     name: Créer la Release GitHub
-    needs: [build_wheels, build_pure_wheel, build_sdist]
+    needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
@@ -175,4 +110,3 @@ jobs:
         with:
           files: dist-release/*
           generate_release_notes: true
-

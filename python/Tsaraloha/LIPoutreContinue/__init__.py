@@ -106,32 +106,29 @@ vérifications effectuées avant d'appeler l'extension compilée.
 from __future__ import annotations
 
 import difflib
-import warnings
 
-# Extension C++ compilée = moteur de référence. Le repli pur-Python est
-# conservé temporairement (suppression prévue, voir docs/audit/06_plan.md P5),
-# mais il n'est plus silencieux : il est ~40x plus lent sur les enveloppes et
-# ne gère pas les encastrements (travées de longueur nulle).
+# Un seul moteur numérique : l'extension C++ compilée (version 2.0 — l'ancien
+# repli pur-Python, qui dupliquait tout le moteur, a été supprimé).
 try:
     from . import _LIPoutreContinue as _core
-    _BACKEND = "cpp"
 except ImportError as _cpp_import_error:
-    from . import _core_python as _core
-    _BACKEND = "python"
-    warnings.warn(
-        "Tsaraloha.LIPoutreContinue : extension C++ introuvable "
-        f"({_cpp_import_error}). Repli sur le backend pur-Python, beaucoup plus "
-        "lent et sans support des encastrements. Réinstallez la librairie "
-        "(pip install --force-reinstall Tsaraloha) ou vérifiez que le module "
-        "_LIPoutreContinue compilé est à côté de ce fichier.",
-        RuntimeWarning,
-        stacklevel=2,
-    )
+    raise ImportError(
+        "Tsaraloha.LIPoutreContinue : l'extension C++ compilée "
+        f"(_LIPoutreContinue) est introuvable ou ne se charge pas ({_cpp_import_error}).\n"
+        "  • Installation : pip install --force-reinstall Tsaraloha "
+        "(wheels précompilées Windows, Linux, macOS).\n"
+        "  • Sans wheel pour votre plateforme, pip compile depuis les sources : "
+        "un compilateur C++20 et CMake >= 3.18 sont requis.\n"
+        "  • Build local : cmake -B build && cmake --build build --config Release, "
+        "puis PYTHONPATH=build/python."
+    ) from _cpp_import_error
+
+_BACKEND = "cpp"  # conservé pour compatibilité 1.x (toujours "cpp")
 
 
 from . import _validation as _v
 
-__version__ = "1.1.0"
+__version__ = "2.0.0"
 
 # =============================================================================
 #  API publique.

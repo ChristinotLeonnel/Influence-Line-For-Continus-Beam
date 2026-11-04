@@ -4,8 +4,7 @@
 #
 #  Le module est construit par CMake seul, puis importé via
 #  PYTHONPATH=build/python : cela vérifie aussi que l'extension compilée est
-#  bien placée à côté du paquet Python (sinon conftest.py refuse de tourner
-#  sur le repli pur-Python).
+#  bien placée à côté du paquet Python (sinon l'import échoue).
 # =============================================================================
 name: Tests
 

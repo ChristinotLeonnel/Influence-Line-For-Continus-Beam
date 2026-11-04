@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "Tsaraloha"
-version = "1.1.0"
+version = "2.0.0"
 description = "Tsaraloha : librairie chapeau regroupant plusieurs sous-librairies de calcul. Sous-librairie actuelle : LIPoutreContinue, analyse structurelle de poutres continues (lignes d'influence, enveloppes de charge, isostatique/hyperstatique)"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -61,6 +61,8 @@ sdist.include = [
     "LIPoutreContinue/",
     "include/",
     "python/",
+    "tests/",
+    "CHANGELOG.md",
 ]
 sdist.exclude = [
     ".github/",
@@ -68,6 +70,8 @@ sdist.exclude = [
     "exemple/",
     "google_veo_script.md",
 ]
+# Les tests sont inclus dans le sdist pour pouvoir valider un build depuis
+# les sources (cibuildwheel les exécute depuis {project}).
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -84,11 +88,17 @@ TSARALOHA_BUILD_EXAMPLES = "OFF"
 #  .github/workflows/wheels.yml. Voir https://cibuildwheel.pypa.io
 # =============================================================================
 [tool.cibuildwheel]
-# CPython 3.9 -> 3.13, Windows 64 bits uniquement.
-build = "cp3{9,10,11,12,13}-win_amd64"
-skip = ["pp*"]
+# CPython 3.9 -> 3.14 ; PyPy exclu. Plateformes : voir la matrice de
+# .github/workflows/wheels.yml (Windows, Linux x86_64/aarch64, macOS x86_64/arm64).
+build = "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-*"
+skip = ["pp*", "*-musllinux_i686", "*-manylinux_i686", "*-win32"]
 build-verbosity = 1
 
-# Test fumée après build : le module s'importe et un calcul minimal tourne.
-test-command = "python -c \"import Tsaraloha.LIPoutreContinue as m; o = m.Output(E=[210e9], I=[8e-4], L=[6.0], steps=1.0, root=''); o.compute(); print('OK', len(o.X))\""
+# Chaque wheel est validée par la suite de tests complète (oracle Clapeyron,
+# régressions, enveloppes), pas seulement par un import.
+test-requires = ["pytest", "numpy"]
+test-command = "pytest {project}/tests -p no:cacheprovider -q"
 
+[tool.cibuildwheel.macos]
+# std::filesystem (utilisé par l'export JSON) requiert macOS >= 10.15.
+environment = { MACOSX_DEPLOYMENT_TARGET = "10.15" }
