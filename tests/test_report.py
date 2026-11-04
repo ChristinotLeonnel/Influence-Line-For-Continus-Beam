@@ -62,6 +62,17 @@ def test_fixed_end_skips_moment_equilibrium_but_passes(tmp_path):
     assert "encastrement" in doc
 
 
+def test_validity_domain_flags_large_deflections(tmp_path):
+    """A 30x60 cm concrete beam over 154 m: linear theory is exact for the
+    data but meaningless; the note must say so instead of staying silent."""
+    b = tsa.Beam().add_span(154.0, 30e9, 0.3 * 0.6**3 / 12)
+    res = b.analyze(step=2.0, loads=[tsa.PointLoadTrain([120.0])])
+    check = [c for c in run_checks(res) if "validité" in c["name"]][0]
+    assert not check["passed"] and check["measure"] > 0.01
+    doc = res.report(tmp_path / "v.html").read_text(encoding="utf-8")
+    assert "NON CONFORME" in doc and "ne doivent pas être utilisés" in doc
+
+
 def test_convergence_study(tmp_path):
     res = analysed()
     doc = res.report(tmp_path / "c.html", convergence=True).read_text(encoding="utf-8")

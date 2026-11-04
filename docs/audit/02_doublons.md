@@ -32,8 +32,8 @@ depuis l'API publique Python ou C++.
 
 | Élément | Usages trouvés | Verdict |
 |---|---|---|
-| `getValue()` [Utils.h:244](../../LIPoutreContinue/include/LIPoutreContinue/Utils.h#L244) | aucun | Mort : à supprimer |
-| `parseVector()`, `LoadParser()` [Utils.h:231-279](../../LIPoutreContinue/include/LIPoutreContinue/Utils.h#L231-L279) | uniquement exposés dans les bindings | Vestige de l'ancien format texte ; à déprécier |
+| `getValue()` [Utils.h](../../LIPoutreContinue/include/LIPoutreContinue/Utils.h) | aucun | Mort, mais dans un en-tête public : **déprécié en 2.0**, suppression en 3.0 |
+| `parseVector()`, `LoadParser()` [Utils.h](../../LIPoutreContinue/include/LIPoutreContinue/Utils.h) | aucun usage. **Correction de l'audit initial :** ils ne sont *pas* exposés dans les bindings, seulement cités dans une docstring. | Vestige de l'ancien format texte ; **déprécié en 2.0** (`[[deprecated]]`, en-tête C++ public) |
 | `Configuration::loadFromData`, `YoungModule`, `Inertie`, `steps` | bindings + `_core_python` ; inutilisés par `Loading` | Classe de base artificielle ; à fusionner dans le futur modèle |
 | `UpdatePositions` + `ProjectPaths::pos_*` + `05_Load_Positioning/` | bindings, docs ; aucun exemple fonctionnel ne l'alimente | Vestige du flux fichier ; à déprécier (garder une couche de compatibilité 1 version) |
 | `Hyperstatique::SpanLeftSupportMoments`, `SpanRightSupportMoments`, `leftMomentsCache_`, `rightMomentsCache_` | usage interne transitoire | Libérables après construction (mémoire) |
@@ -54,3 +54,18 @@ depuis l'API publique Python ou C++.
 
 - C++ `vector<vector<vector<double>>>` → listes Python imbriquées → `numpy.array` dans `plot.py` et `report.py`. Il y a une copie à chaque accès de propriété, plus la conversion numpy.
 - `CombineLoadPosition.Addition` : `map<string,map<string,double>>` → dict → JSON. Les clés sont fabriquées par concaténation de chaînes (« `12 1` »), alors qu'une structure typée suffirait.
+
+## 6. Exécution (2.0)
+
+| Élément | Action |
+|---|---|
+| `_core_python.py`, `setup_pure.py` | **Supprimés** (moteur dupliqué) |
+| `exemple/teste.py`, `exemple1.py`, `exemple3.py` | **Supprimés** (brouillons sans valeur propre) |
+| `exemple/exemple2.py` | Réécrit en `ex07_pont_beton_convois.py` (API 2.0), puis supprimé |
+| `ex05_visualisation_complete.py` | Renommé `ex06_…` (doublon de numéro) |
+| `resultats_ex03/` | **Supprimé** (sorties 1.x périmées, valeurs d'enveloppes fausses) ; non régénéré dans le dépôt |
+| `UpdatePositions` | Déprécié (`DeprecationWarning`), conservé jusqu'en 3.0 |
+| `parseVector`, `LoadParser`, `getValue` | `[[deprecated]]` |
+| Recherche de position (3 copies + 1 divergente) | Une seule implémentation : `MovingLoadSearch` |
+| `report.py` 3 moteurs PDF | Un seul (weasyprint) |
+| `google_veo_script.md` | **Conservé** : contenu non technique de l'auteur, déjà exclu du sdist ; à déplacer à votre convenance |

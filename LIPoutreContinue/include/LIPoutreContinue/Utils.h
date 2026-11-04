@@ -278,6 +278,7 @@ inline void loading_delivery(const load_delivery& data, json& file,
 //  librairie elle-même n'appelle jamais ces fonctions ni ne lit de fichier).
 // =============================================================================
 
+[[deprecated("Vestige du format texte 1.x, sans usage dans la librairie ; suppression prévue en 3.0.")]]
 inline std::vector<double> parseVector(const std::string& line) {
     std::vector<double> vector;
     size_t pos = line.find(":");
@@ -291,6 +292,7 @@ inline std::vector<double> parseVector(const std::string& line) {
     return vector;
 }
 
+[[deprecated("Vestige du format texte 1.x, sans usage dans la librairie ; suppression prévue en 3.0.")]]
 inline std::string getValue(const std::string& line) {
     size_t pos = line.find(":");
     if (pos != std::string::npos) {
@@ -302,6 +304,7 @@ inline std::string getValue(const std::string& line) {
     return "";
 }
 
+[[deprecated("Vestige du format texte 1.x, sans usage dans la librairie ; suppression prévue en 3.0.")]]
 inline load LoadParser(std::string& line, const char* marker_1, const char* marker_2) {
     load l;
     const size_t work  = line.find(marker_1);

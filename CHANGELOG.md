@@ -54,6 +54,12 @@ sont vérifiées exactes à 10⁻¹⁵ par rapport à une résolution directe de
 - Si l'extension n'est pas chargeable, `import Tsaraloha.LIPoutreContinue` lève une `ImportError` explicite, au lieu de basculer silencieusement sur l'autre moteur. `_BACKEND` vaut toujours `"cpp"`.
 - Wheels C++ pour Windows x64, Linux x86_64/aarch64 et macOS x86_64/arm64, CPython 3.9 à 3.14. La suite de tests complète est exécutée sur chaque wheel. Sur une plateforme sans wheel (par exemple Pydroid/Android), l'installation demande un compilateur C++20.
 
+### Nettoyage et dépréciations
+- Supprimés : brouillons `exemple/teste.py`, `exemple1.py`, `exemple2.py` (réécrit en `ex07_pont_beton_convois.py`), `exemple3.py` ; sorties périmées `resultats_ex03/`.
+- `ex05_visualisation_complete.py` renommé en `ex06_…`. Nouveaux exemples : `ex00_demarrage_rapide.py`, `ex07_pont_beton_convois.py`.
+- Dépréciés (suppression en 3.0) : `UpdatePositions` (flux fichier texte 1.x), `parseVector`, `LoadParser`, `getValue` (C++).
+- Note de calcul : nouveau contrôle « Domaine de validité » (|w|max / L ≤ 1/100). Il signale les données hors du domaine des petits déplacements au lieu de les accepter sans rien dire.
+
 ### Build / tests
 - Le `.pyd` est désormais placé à côté du paquet avec les générateurs multi-configuration (Visual Studio).
 - Ajout de la suite pytest (`tests/`), d'un test natif C++ (`ctest`) et de la CI Linux + Windows.

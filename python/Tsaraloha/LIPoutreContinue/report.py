@@ -85,6 +85,17 @@ def run_checks(res) -> list:
     wsup = max(float(np.max(np.abs(np.asarray(out.Def[s][j])))) for s in range(len(out.Def)) for j in (0, -1))
     checks.append(dict(name="Flèche nulle aux appuis", measure=wsup, threshold=1e-15, passed=wsup < 1e-15,
                        description="Flèche maximale aux appuis [m/N]."))
+    if res._has_loads:
+        # Domaine de validité : la théorie linéaire (petits déplacements)
+        # n'a de sens que pour des flèches faibles devant la portée.
+        w = res.envelope("w").governing
+        span_L = float(out.L_spans[w.span])
+        ratio = abs(w.value) / span_L
+        checks.append(dict(name="Domaine de validité : |w|max / L ≤ 1/100", measure=ratio, threshold=1e-2,
+                           passed=ratio <= 1e-2,
+                           description=f"Flèche extrême {_num(w.value)} m sur une travée de {_num(span_L)} m. "
+                                       "Au-delà, l'hypothèse des petits déplacements n'est plus admissible : "
+                                       "revoir les sections ou utiliser une analyse non linéaire."))
     return checks
 
 

@@ -614,7 +614,18 @@ Configuration = _core.Configuration
 
 # ── Chemins d'export et repositionnement des charges ─────────────────────────
 ProjectPaths = _core.ProjectPaths
-UpdatePositions = _core.UpdatePositions
+class UpdatePositions(_core.UpdatePositions):
+    """Déprécié (2.0) : relit les JSON d'enveloppes écrits sur disque pour
+    réécrire un ancien format texte. Les positions critiques sont désormais
+    disponibles en mémoire (``Results.envelope(...).max_extremum.loads``).
+    Suppression prévue en 3.0."""
+
+    def __init__(self, *args, **kwargs):
+        import warnings
+        warnings.warn("UpdatePositions est déprécié et sera supprimé en 3.0 : utilisez "
+                      "Results.envelope(...).max_extremum.loads (positions en mémoire).",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(*args, **kwargs)
 
 # ── Structures de résultats ───────────────────────────────────────────────────
 # IMPORTANT : bien que le fichier .pyi déclare ces types comme des classes avec
