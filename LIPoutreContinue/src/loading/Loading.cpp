@@ -90,10 +90,35 @@ Loading::Loading(std::vector<std::vector<std::vector<double>>> CURVES_in,
                  double scale)
     : Configuration(),
       SpanNodePositions(std::move(SpanNodePositions_in)),
-      CURVES(std::move(CURVES_in)),
       POSITION(std::move(POSITION_in)),
-      scale_(scale)
+      scale_(scale),
+      ownedCurves_(std::move(CURVES_in))
 {
+    curves_ = &ownedCurves_;
+    init(spans_in, pointLoads, distribLoads);
+}
+
+Loading::Loading(BorrowCurves,
+                 const std::vector<std::vector<std::vector<double>>>& CURVES_ref,
+                 const std::vector<double>& POSITION_in,
+                 const std::vector<std::vector<double>>& SpanNodePositions_in,
+                 const std::vector<double>& spans_in,
+                 const std::vector<load>& pointLoads,
+                 const std::vector<load>& distribLoads,
+                 double scale)
+    : Configuration(),
+      SpanNodePositions(SpanNodePositions_in),
+      POSITION(POSITION_in),
+      scale_(scale),
+      curves_(&CURVES_ref)
+{
+    init(spans_in, pointLoads, distribLoads);
+}
+
+void Loading::init(const std::vector<double>& spans_in, const std::vector<load>& pointLoads,
+                   const std::vector<load>& distribLoads)
+{
+    const auto& CURVES = *curves_;
     spans = spans_in;
     Point_LOAD = pointLoads;
     Rectangulare_LOAD = distribLoads;
@@ -148,7 +173,7 @@ size_t Loading::nearestNode(double x) const
 Loading::Line Loading::makeLine(size_t span, size_t section) const
 {
     const size_t g = globalIndex(span, section);
-    const auto& row = CURVES[span][section];
+    const auto& row = (*curves_)[span][section];
     Line line;
     line.t = POSITION;
     if (row.size() == POSITION.size() + 1)
@@ -363,7 +388,7 @@ double Loading::OnePointLoad(double intensity, size_t span, size_t section, size
     if (alpha >= POSITION.size())
         throw std::out_of_range("Loading::OnePointLoad: alpha=" + std::to_string(alpha)
             + " hors de la grille (" + std::to_string(POSITION.size()) + " nœuds).");
-    const auto& row = CURVES[span][section];
+    const auto& row = (*curves_)[span][section];
     // Lignes d'effort tranchant : au-delà de la section, décalage d'un indice.
     const size_t r = (row.size() == POSITION.size() + 1 && alpha > g) ? alpha + 1 : alpha;
     return row[r] * scale_ * intensity;

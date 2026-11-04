@@ -223,7 +223,10 @@ if(TSARALOHA_BUILD_PYTHON)
     set(TSARALOHA_PY_PKG_SRC "${CMAKE_CURRENT_SOURCE_DIR}/python/Tsaraloha/LIPoutreContinue")
     set(TSARALOHA_PY_PKG_OUT "${CMAKE_BINARY_DIR}/python/Tsaraloha/LIPoutreContinue")
     if(EXISTS "${TSARALOHA_PY_PKG_SRC}")
-        file(GLOB TSARALOHA_PY_FILES
+        # CONFIGURE_DEPENDS : la liste est réévaluée à chaque build — sans lui,
+        # un fichier .py supprimé restait dans la liste et faisait échouer la
+        # copie POST_BUILD jusqu'à une reconfiguration manuelle.
+        file(GLOB TSARALOHA_PY_FILES CONFIGURE_DEPENDS
              "${TSARALOHA_PY_PKG_SRC}/*.py"
              "${TSARALOHA_PY_PKG_SRC}/*.pyi"
              "${TSARALOHA_PY_PKG_SRC}/py.typed")

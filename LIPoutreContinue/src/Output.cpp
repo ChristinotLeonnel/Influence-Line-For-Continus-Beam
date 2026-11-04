@@ -171,7 +171,8 @@ void Output::computeLoadEnvelopes(bool force)
     // enveloppe à la section critique (= section du maximum de la ligne
     // d'influence, comme documenté — auparavant, toute la travée).
     auto envelopesFor = [&](const auto& data, double scale, const Position3D& pos) {
-        Loading loading(data, X, SpanNodePositions, L_spans, userPointLoads_, userDistribLoads_, scale);
+        Loading loading(Loading::BorrowCurves{}, data, X, SpanNodePositions, L_spans,
+                        userPointLoads_, userDistribLoads_, scale);
         auto crit = loading.computeAtSection(pos.i, pos.j);
         return std::pair<LoadEnvelope, LoadEnvelope>{
             LoadEnvelope{ loading.Point_load, loading.Rectangular_load, loading.Combined_load },

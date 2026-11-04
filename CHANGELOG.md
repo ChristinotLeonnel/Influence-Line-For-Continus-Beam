@@ -36,7 +36,7 @@ sont vérifiées exactes à 10⁻¹⁵ par rapport à une résolution directe de
 - Les charges portant le même nom sont distinguées (`"Camion #2"`).
 
 ### Performance
-- Enveloppes : 54,8 s → 1,96 s pour N = 1004 nœuds (×28), 4,70 s → 0,26 s pour N = 404. Mesuré sur le même poste, voir [docs/audit/04_performance_memoire.md](docs/audit/04_performance_memoire.md).
+- Enveloppes : **×18 (N = 404) à ×29 (N = 1004)**, avec une recherche désormais exacte. Pic mémoire −38 à −43 % : `Loading` n'effectue plus de copie du tenseur N² (constructeur `BorrowCurves`). Les deux versions ont été mesurées alternativement, sur le même poste et dans la même session, voir [docs/audit/benchmarks.md](docs/audit/benchmarks.md).
 
 ### Suppression du second moteur
 - **Le backend pur-Python (`_core_python.py`) et `setup_pure.py` sont supprimés.** C'était une copie complète du moteur, ~40× plus lente sur les enveloppes, qui ne gérait pas les encastrements et qui aurait dû recevoir chaque correction en double. Il n'y a plus qu'un seul moteur numérique : l'extension C++.

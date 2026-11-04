@@ -57,6 +57,24 @@ public:
 		double scale = 1.0
 	);
 
+	// Variante SANS COPIE du tenseur : `CURVES` est seulement référencé et
+	// doit survivre à l'objet Loading (cas d'Output, qui détient BM/SF/…).
+	// Évite une copie N² par grandeur (≈ 39 Mo par tenseur pour N = 2205).
+	struct BorrowCurves {};
+	Loading(BorrowCurves, const std::vector<std::vector<std::vector<double>>>& CURVES,
+		const std::vector<double>& POSITION,
+		const std::vector<std::vector<double>>& SpanNodePositions,
+		const std::vector<double>& spans,
+		const std::vector<load>& pointLoads,
+		const std::vector<load>& distribLoads,
+		double scale = 1.0
+	);
+
+	// Un pointeur interne désigne le tenseur (possédé ou emprunté) : copier
+	// l'objet le rendrait incohérent.
+	Loading(const Loading&) = delete;
+	Loading& operator=(const Loading&) = delete;
+
 	// ── Briques élémentaires (API 1.x conservée) ─────────────────────────────
 	// Effet d'une charge ponctuelle posée au nœud d'indice `alpha`.
 	double OnePointLoad(double intensity, size_t span, size_t section, size_t alpha);
@@ -122,7 +140,10 @@ private:
 	                      long onlySection = -1) const;
 
 	std::vector<std::vector<double>> SpanNodePositions;
-	std::vector<std::vector<std::vector<double>>> CURVES;
+	void init(const std::vector<double>& spans_in, const std::vector<load>& pointLoads,
+	          const std::vector<load>& distribLoads);
+	std::vector<std::vector<std::vector<double>>> ownedCurves_;
+	const std::vector<std::vector<std::vector<double>>>* curves_ = nullptr;
 	std::vector<double> POSITION;
 	double scale_ = 1.0;
 	std::vector<size_t> spanOffset_;   // indice global du 1er nœud de chaque travée
