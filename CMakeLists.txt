@@ -203,41 +203,28 @@ if(TSARALOHA_BUILD_PYTHON)
         RUNTIME_OUTPUT_DIRECTORY "$<1:${CMAKE_BINARY_DIR}/python/Tsaraloha/LIPoutreContinue>"
     )
 
-    # ── Copie du paquet pur-Python racine Tsaraloha/ (namespace) ────────────
+    # ── Copie du paquet Python (racine Tsaraloha/ + sous-paquet) ───────────
+    # Cible dédiée, exécutée à CHAQUE build : une modification d'un .py seul
+    # est donc propagée même si l'extension C++ n'a pas besoin d'être
+    # recompilée (avec une copie POST_BUILD, elle ne l'était pas).
+    # CONFIGURE_DEPENDS : la liste des fichiers est réévaluée à chaque build
+    # (fichier ajouté ou supprimé pris en compte sans reconfiguration).
     set(TSARALOHA_PY_ROOT_SRC "${CMAKE_CURRENT_SOURCE_DIR}/python/Tsaraloha")
     set(TSARALOHA_PY_ROOT_OUT "${CMAKE_BINARY_DIR}/python/Tsaraloha")
-    if(EXISTS "${TSARALOHA_PY_ROOT_SRC}/__init__.py")
-        add_custom_command(TARGET _LIPoutreContinue POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory "${TSARALOHA_PY_ROOT_OUT}"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${TSARALOHA_PY_ROOT_SRC}/__init__.py" "${TSARALOHA_PY_ROOT_OUT}/"
-        )
-    endif()
-    if(EXISTS "${TSARALOHA_PY_ROOT_SRC}/py.typed")
-        add_custom_command(TARGET _LIPoutreContinue POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${TSARALOHA_PY_ROOT_SRC}/py.typed" "${TSARALOHA_PY_ROOT_OUT}/"
-        )
-    endif()
-
-    # ── Copie du sous-paquet pur-Python Tsaraloha/LIPoutreContinue/ ─────────
     set(TSARALOHA_PY_PKG_SRC "${CMAKE_CURRENT_SOURCE_DIR}/python/Tsaraloha/LIPoutreContinue")
     set(TSARALOHA_PY_PKG_OUT "${CMAKE_BINARY_DIR}/python/Tsaraloha/LIPoutreContinue")
-    if(EXISTS "${TSARALOHA_PY_PKG_SRC}")
-        # CONFIGURE_DEPENDS : la liste est réévaluée à chaque build — sans lui,
-        # un fichier .py supprimé restait dans la liste et faisait échouer la
-        # copie POST_BUILD jusqu'à une reconfiguration manuelle.
-        file(GLOB TSARALOHA_PY_FILES CONFIGURE_DEPENDS
-             "${TSARALOHA_PY_PKG_SRC}/*.py"
-             "${TSARALOHA_PY_PKG_SRC}/*.pyi"
-             "${TSARALOHA_PY_PKG_SRC}/py.typed")
-        foreach(_pyfile ${TSARALOHA_PY_FILES})
-            add_custom_command(TARGET _LIPoutreContinue POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                        "${_pyfile}" "${TSARALOHA_PY_PKG_OUT}/"
-            )
-        endforeach()
-    endif()
+    file(GLOB TSARALOHA_PY_ROOT_FILES CONFIGURE_DEPENDS
+         "${TSARALOHA_PY_ROOT_SRC}/*.py" "${TSARALOHA_PY_ROOT_SRC}/py.typed")
+    file(GLOB TSARALOHA_PY_FILES CONFIGURE_DEPENDS
+         "${TSARALOHA_PY_PKG_SRC}/*.py" "${TSARALOHA_PY_PKG_SRC}/*.pyi" "${TSARALOHA_PY_PKG_SRC}/py.typed")
+    add_custom_target(tsaraloha_python_sources ALL
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${TSARALOHA_PY_PKG_OUT}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${TSARALOHA_PY_ROOT_FILES} "${TSARALOHA_PY_ROOT_OUT}/"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${TSARALOHA_PY_FILES} "${TSARALOHA_PY_PKG_OUT}/"
+        COMMENT "Synchronisation du paquet Python dans ${CMAKE_BINARY_DIR}/python"
+        VERBATIM
+    )
+    add_dependencies(_LIPoutreContinue tsaraloha_python_sources)
 
     # Installation ("cmake --install", voir démarche fournie à côté de ce
     # fichier). Sous Windows, .pyd est un DLL -> RUNTIME DESTINATION (et non

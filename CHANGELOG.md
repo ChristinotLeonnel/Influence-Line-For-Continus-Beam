@@ -23,6 +23,7 @@ sont vérifiées exactes à 10⁻¹⁵ par rapport à une résolution directe de
 - **Enveloppe « section critique ».** Elle est maintenant calculée à la section du maximum de la ligne d'influence, comme le dit la documentation, et non plus sur toute la travée.
 
 ### Ajouts
+- **API de haut niveau** (`api.py`) : `Beam` (`add_span`, `add_support` 'pin'/'roller'/'fixed', `analyze`), `PointLoadTrain(axles, spacings)`, `DistributedLoad(q, length)`, `Results` (`envelope()`, `influence_line()`, `reaction_influence_line()`, `reactions()`, `maximum_bending_moment`…, `to_json()`, `plot()`, `report()`). Résultats en NumPy, avec unités et abscisses physiques. Elle n'effectue aucun calcul : tout est délégué au moteur C++. L'API 1.x (`Output`, `Load`, …) reste disponible.
 - **Réactions d'appui** : lignes d'influence exactes `support_reaction` [appui][charge], déduites des moments sur appuis (ΣR = 1 vérifié), et enveloppes par appui `support_reaction_envelopes`. Exports `02_Influence_Lines/support_reaction.json` et `04_Load_Envelopes/support_reactions.json`.
 - **Courbes enveloppes** E⁺(x), E⁻(x) le long de la poutre, pour M, V, w et θ et pour chaque type de charge : `section_envelopes`, export `04_Load_Envelopes/envelope_curves.json`.
 - **Extrema des lignes d'influence** (max **et** min) repérés par leurs abscisses physiques `section_x` et `load_x` : `influence_line_extrema`.

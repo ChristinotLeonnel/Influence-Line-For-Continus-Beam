@@ -603,6 +603,9 @@ class Output(_RawOutput):
 
 from .report import generate_calculation_note, generate_calculation_pdf
 
+# ── API de haut niveau (2.0) — voir api.py ───────────────────────────────────
+from .api import Beam, PointLoadTrain, DistributedLoad, Results, Envelope, Extremum
+
 # ── Configuration ────────────────────────────────────────────────────────────
 Configuration = _core.Configuration
 

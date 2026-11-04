@@ -325,3 +325,11 @@ def generate_calculation_note(
     logo_svg: Optional[str] = ...,
     curve_plotter: Optional[Callable[..., str]] = ...,
 ) -> str: ...
+
+# ── API de haut niveau (2.0) — types réels définis dans api.py ────────────────
+from .api import Beam as Beam
+from .api import PointLoadTrain as PointLoadTrain
+from .api import DistributedLoad as DistributedLoad
+from .api import Results as Results
+from .api import Envelope as Envelope
+from .api import Extremum as Extremum
