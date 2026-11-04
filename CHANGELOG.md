@@ -60,7 +60,7 @@ sont vérifiées exactes à 10⁻¹⁵ par rapport à une résolution directe de
 
 ### Nettoyage et dépréciations
 - Supprimés : brouillons `exemple/teste.py`, `exemple1.py`, `exemple2.py` (réécrit en `ex07_pont_beton_convois.py`), `exemple3.py` ; sorties périmées `resultats_ex03/`.
-- Exemples : les scripts 1.x `ex01` à `ex06` sont supprimés. Restent `ex00_demarrage_rapide.py` et `ex07_pont_beton_convois.py`, et un nouveau cas de dimensionnement complet est ajouté : `ex08_dimensionnement_poutre_roulement.py`.
+- Exemples : les scripts 1.x `ex01` à `ex06` sont supprimés. Restent `ex00_demarrage_rapide.py` et `ex07_pont_beton_convois.py`, et un nouveau cas de dimensionnement complet est ajouté : `ex08_dimensionnement_poutre_roulement.py`, et `ex09_courbes.py` (visualisation de toutes les courbes).
 - Dépréciés (suppression en 3.0) : `UpdatePositions` (flux fichier texte 1.x), `parseVector`, `LoadParser`, `getValue` (C++).
 - Note de calcul : nouveau contrôle « Domaine de validité » (|w|max / L ≤ 1/100). Il signale les données hors du domaine des petits déplacements au lieu de les accepter sans rien dire.
 

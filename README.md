@@ -63,6 +63,8 @@ Exemples complets :
 - [`exemple/ex08_dimensionnement_poutre_roulement.py`](exemple/ex08_dimensionnement_poutre_roulement.py) :
   **dimensionnement complet** d'une poutre de roulement (choix du profilé, combinaisons ELU/ELS,
   charges permanentes par aire des lignes d'influence, soulèvement des appuis).
+- [`exemple/ex09_courbes.py`](exemple/ex09_courbes.py) : **toutes les courbes** (lignes d'influence de M, V
+  et des réactions, enveloppes M/V/w/θ, positions critiques, synthèse) ; `--save` pour des PNG.
 
 ## Modèle, unités et conventions
 

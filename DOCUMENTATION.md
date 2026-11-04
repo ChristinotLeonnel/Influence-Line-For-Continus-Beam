@@ -538,11 +538,12 @@ Lors d'un appel à `export_all()`, les sous-dossiers suivants sont générés :
 
 ## 7. Guide Complet des Exemples Pas à Pas
 
-Le répertoire `exemple/` contient 3 scripts prêts à exécuter (API 2.0) :
+Le répertoire `exemple/` contient 4 scripts prêts à exécuter (API 2.0) :
 
 1. **`ex00_demarrage_rapide.py`** : les quelques lignes pour commencer (poutre, convoi, enveloppes, note de calcul).
 2. **`ex07_pont_beton_convois.py`** : poutre bi-encastrée sous plusieurs convois et une charge par tronçons, avec contrôles de la note de calcul (domaine de validité).
 3. **`ex08_dimensionnement_poutre_roulement.py`** : **problème de dimensionnement complet**. Il choisit le plus léger profilé HEB d'une poutre de roulement continue (4 × 6 m) sous un pont roulant. Il combine à l'ELU les charges permanentes (g × aire des lignes d'influence) et les enveloppes de la charge mobile, avec γ_G favorable ou défavorable section par section, et vérifie la flexion, le tranchant, la flèche L/600 et le soulèvement des appuis. Il produit aussi les figures et la note de calcul.
+4. **`ex09_courbes.py`** : affiche toutes les courbes dans 6 fenêtres : synthèse, lignes d'influence du moment en plusieurs sections et de l'effort tranchant, lignes d'influence des réactions, enveloppes M/V/w/θ, positions critiques en travée et sur appui. `python ex09_courbes.py --save` enregistre des PNG à la place.
 
 ### Script Exemple Globale
 
